@@ -56,7 +56,9 @@ input { outline:none; }
 .contact__body { flex:1; min-width:0; }
 .contact__name { font-weight:600; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:6px; }
 .contact__name .star { color:#fbbf24; flex-shrink:0; }
-.contact__preview { font-size:12px; color:var(--text-mute); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+/* Стили для отображения ID в списке */
+.contact__id { font-size:11px; color:var(--text-mute); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:-1px; }
+.contact__preview { font-size:12px; color:var(--text-mute); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
 .contact__actions { display:flex; gap:2px; opacity:0; transition:opacity var(--transition); }
 .contact:hover .contact__actions, .contact.active .contact__actions { opacity:1; }
 .contact__actions .btn--icon { width:28px; height:28px; padding:4px; }
@@ -67,7 +69,9 @@ input { outline:none; }
 .main { display:flex; flex-direction:column; min-width:0; background:var(--bg); }
 .topbar { height:64px; padding:0 20px; display:flex; align-items:center; gap:12px; background:var(--panel); border-bottom:1px solid var(--border); }
 .topbar__info { flex:1; min-width:0; }
-.topbar__name { font-weight:600; font-size:14.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.topbar__name { font-weight:600; font-size:14.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:8px; }
+/* Стили для ID в шапке */
+.topbar__id { font-size:12px; color:var(--text-mute); font-weight:400; background:var(--panel-2); padding:2px 6px; border-radius:4px; }
 .topbar__status { font-size:12px; color:var(--text-mute); display:flex; align-items:center; gap:5px; }
 .topbar__status.online { color:var(--online); }
 .topbar__status .dot { width:7px; height:7px; border-radius:50%; background:currentColor; box-shadow:0 0 0 3px color-mix(in srgb, currentColor 20%, transparent); }
@@ -164,6 +168,7 @@ input { outline:none; }
       </button>
       <div class="avatar" id="topAvatar" style="width:38px;height:38px;font-size:14px;background:#334155">?</div>
       <div class="topbar__info">
+        <!-- Здесь теперь Имя и ID -->
         <div class="topbar__name" id="peerName">Выберите собеседника</div>
         <div class="topbar__status" id="status"><span class="dot"></span><span id="statusText">не подключено</span></div>
       </div>
@@ -202,8 +207,8 @@ input { outline:none; }
       <input id="modalId" placeholder="например, bob-456" autocomplete="off">
     </div>
     <div class="modal__field">
-      <label for="modalName">Имя (необязательно)</label>
-      <input id="modalName" placeholder="Как сохранить в контактах" autocomplete="off">
+      <label for="modalName">Имя (как сохранить)</label>
+      <input id="modalName" placeholder="Например, Боб" autocomplete="off">
     </div>
     <div class="modal__error" id="modalError"></div>
     <div class="modal__actions">
@@ -214,7 +219,6 @@ input { outline:none; }
 </div>
 
 <script type="module">
-// webConnect.js: использует публичные сети для сигналинга
 import webconnect from 'https://cdn.jsdelivr.net/npm/webconnect/dist/esm/webconnect.js';
 
 /* ================= STORAGE ================= */
@@ -229,7 +233,7 @@ let filter = '';
 let myId = '';
 let contacts = load(LS.contacts, []);
 let history = load(LS.history, {});
-let onlinePeers = new Set(); // Кто сейчас в сети
+let onlinePeers = new Set();
 
 /* ================= DOM ================= */
 const $ = id => document.getElementById(id);
@@ -265,41 +269,6 @@ function initials(name) {
 function avatarHtml(name, size = 40, radius = 12) {
   return `<div class="avatar" style="width:${size}px;height:${size}px;font-size:${size*0.38}px;background:${avatarColor(name)};border-radius:${radius}px">${esc(initials(name))}</div>`;
 }
-
-/* ================= SOUND & TITLE NOTIFICATION ================= */
-let originalTitle = document.title;
-let titleInterval = null;
-const msgSound = new Audio('https://assets.mixkit.co/sfx/download/mixkit-message-pop-alert-2354.wav');
-msgSound.volume = 0.5;
-
-function playNotifySound() {
-  msgSound.currentTime = 0;
-  msgSound.play().catch(() => {});
-}
-
-function startTitleNotification() {
-  if (titleInterval) return;
-  let toggle = false;
-  titleInterval = setInterval(() => {
-    document.title = toggle ? '🔴 Новое сообщение!' : originalTitle;
-    toggle = !toggle;
-  }, 1000);
-}
-
-function stopTitleNotification() {
-  if (titleInterval) {
-    clearInterval(titleInterval);
-    titleInterval = null;
-    document.title = originalTitle;
-  }
-}
-
-window.addEventListener('focus', stopTitleNotification);
-window.addEventListener('blur', () => {
-  if (document.querySelector('.msg-row.me')?.classList.contains('unread')) {
-    // логика мигания, если окно не в фокусе
-  }
-});
 
 /* ================= THEME ================= */
 function applyTheme(theme) {
@@ -351,6 +320,7 @@ els.modalSubmit.addEventListener('click', () => {
   const existing = findContact(id);
   if (existing) { closeModal(); openChat(id); return; }
 
+  // Если имя не введено, используем ID как имя
   upsertContact(id, name || id, false);
   closeModal();
   openChat(id);
@@ -420,6 +390,7 @@ function renderContacts() {
 
   const renderItem = c => {
     const isOnline = onlinePeers.has(c.id);
+    // Показываем и имя, и ID
     return `
     <div class="contact ${c.id === activePeer ? 'active' : ''}" data-id="${esc(c.id)}">
       <div style="position:relative">
@@ -428,6 +399,7 @@ function renderContacts() {
       </div>
       <div class="contact__body">
         <div class="contact__name">${c.friend ? '<span class="star">★</span>' : ''}${esc(c.name)}</div>
+        <div class="contact__id">${esc(c.id)}</div>
         <div class="contact__preview">${esc(lastMessagePreview(c.id))}</div>
       </div>
       <div class="contact__actions">
@@ -468,7 +440,7 @@ els.contacts.addEventListener('click', (e) => {
 /* ================= CHAT ================= */
 function closeChat() {
   activePeer = null;
-  els.peerName.textContent = 'Выберите собеседника';
+  els.peerName.innerHTML = 'Выберите собеседника';
   els.topAvatar.style.background = '#334155';
   els.topAvatar.textContent = '?';
   setStatus('не подключено', false);
@@ -482,7 +454,11 @@ function openChat(peerId) {
   upsertContact(peerId, c?.name || peerId, c?.friend);
   const name = c?.name || peerId;
 
-  els.peerName.textContent = name;
+  // Выводим Имя и ID в шапке
+  els.peerName.innerHTML = `
+    ${esc(name)} 
+    <span class="topbar__id">${esc(peerId)}</span>
+  `;
   els.topAvatar.style.background = avatarColor(name);
   els.topAvatar.textContent = initials(name);
 
@@ -621,6 +597,35 @@ function sendMessage() {
   els.msgInput.value = '';
   els.msgInput.focus();
 }
+
+/* ================= SOUND & TITLE ================= */
+let originalTitle = document.title;
+let titleInterval = null;
+const msgSound = new Audio('https://assets.mixkit.co/sfx/download/mixkit-message-pop-alert-2354.wav');
+msgSound.volume = 0.5;
+
+function playNotifySound() {
+  msgSound.currentTime = 0;
+  msgSound.play().catch(() => {});
+}
+
+function startTitleNotification() {
+  if (titleInterval) return;
+  let toggle = false;
+  titleInterval = setInterval(() => {
+    document.title = toggle ? '🔴 Новое сообщение!' : originalTitle;
+    toggle = !toggle;
+  }, 1000);
+}
+
+function stopTitleNotification() {
+  if (titleInterval) {
+    clearInterval(titleInterval);
+    titleInterval = null;
+    document.title = originalTitle;
+  }
+}
+window.addEventListener('focus', stopTitleNotification);
 
 /* ================= EVENTS ================= */
 els.connectBtn.addEventListener('click', doConnect);
