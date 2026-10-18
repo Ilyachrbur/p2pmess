@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>P2P Messenger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============ THEME ============ */
+:root { --font: 'Inter', system-ui, sans-serif; --radius: 14px; --radius-sm: 8px; --transition: .18s cubic-bezier(.4,0,.2,1); }
+[data-theme="dark"] { --bg:#0b0f17; --bg-elev:#11161f; --panel:#151b26; --panel-2:#1a2130; --border:#232b3a; --text:#e6edf7; --text-dim:#8b97ab; --text-mute:#5c6880; --accent:#4f8cff; --accent-2:#6ea8ff; --accent-soft:rgba(79,140,255,.14); --me:linear-gradient(135deg,#3b82f6,#2563eb); --me-text:#fff; --hover:rgba(255,255,255,.04); --online:#3ddc84; --danger:#ff5c6c; --shadow:0 8px 28px rgba(0,0,0,.45); --overlay:rgba(0,0,0,.6); }
+[data-theme="light"] { --bg:#f4f6fb; --bg-elev:#fff; --panel:#fff; --panel-2:#f0f3f9; --border:#e3e8f0; --text:#0f172a; --text-dim:#5b6678; --text-mute:#98a2b3; --accent:#2563eb; --accent-2:#3b82f6; --accent-soft:rgba(37,99,235,.1); --me:linear-gradient(135deg,#3b82f6,#2563eb); --me-text:#fff; --hover:rgba(0,0,0,.03); --online:#16a34a; --danger:#dc2626; --shadow:0 8px 28px rgba(15,23,42,.12); --overlay:rgba(15,23,42,.4); }
+* { box-sizing:border-box; margin:0; padding:0; }
+html, body { height:100%; }
+body { font-family:var(--font); background:var(--bg); color:var(--text); font-size:14px; line-height:1.45; overflow:hidden; -webkit-font-smoothing:antialiased; }
+button, input { font:inherit; color:inherit; }
+button { cursor:pointer; border:none; background:none; }
+input { outline:none; }
+::-webkit-scrollbar { width:8px; height:8px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:8px; }
+::-webkit-scrollbar-thumb:hover { background:var(--text-mute); }
+.app { display:grid; grid-template-columns:340px 1fr; height:100vh; height:100dvh; }
+.sidebar { background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; min-width:0; transition:transform var(--transition); z-index:30; }
+.sidebar__top { padding:16px 16px 12px; display:flex; flex-direction:column; gap:12px; border-bottom:1px solid var(--border); }
+.brand { display:flex; align-items:center; gap:10px; }
+.brand__logo { width:34px; height:34px; border-radius:10px; background:var(--me); display:grid; place-items:center; color:#fff; font-weight:700; font-size:16px; box-shadow:0 4px 14px rgba(79,140,255,.35); flex-shrink:0; }
+.brand__name { font-weight:700; font-size:15px; letter-spacing:-.2px; }
+.brand__sub { font-size:11px; color:var(--text-mute); }
+.login-row { display:flex; gap:8px; }
+.login-row input { flex:1; min-width:0; padding:9px 12px; background:var(--panel-2); border:1px solid var(--border); border-radius:var(--radius-sm); font-size:13px; transition:border-color var(--transition), box-shadow var(--transition); }
+.login-row input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.search-wrap { position:relative; }
+.search-wrap svg { position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--text-mute); pointer-events:none; }
+.search-wrap input { width:100%; padding:9px 12px 9px 34px; background:var(--panel-2); border:1px solid transparent; border-radius:var(--radius-sm); font-size:13px; transition:all var(--transition); }
+.search-wrap input:focus { border-color:var(--accent); background:var(--bg-elev); }
+.btn { padding:9px 14px; border-radius:var(--radius-sm); font-size:13px; font-weight:600; background:var(--accent); color:#fff; transition:all var(--transition); display:inline-flex; align-items:center; justify-content:center; gap:6px; white-space:nowrap; }
+.btn:hover { background:var(--accent-2); transform:translateY(-1px); }
+.btn:active { transform:translateY(0); }
+.btn:disabled { opacity:.45; cursor:not-allowed; transform:none; }
+.btn--ghost { background:var(--panel-2); color:var(--text-dim); border:1px solid var(--border); }
+.btn--ghost:hover { background:var(--hover); color:var(--text); }
+.btn--icon { padding:7px; width:32px; height:32px; justify-content:center; border-radius:var(--radius-sm); background:transparent; color:var(--text-dim); }
+.btn--icon:hover { background:var(--hover); color:var(--text); }
+.contacts { flex:1; overflow-y:auto; padding:8px; }
+.section-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.6px; color:var(--text-mute); padding:12px 10px 6px; }
+.contact { display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:10px; cursor:pointer; transition:background var(--transition); position:relative; }
+.contact:hover { background:var(--hover); }
+.contact.active { background:var(--accent-soft); }
+.contact.active::before { content:''; position:absolute; left:0; top:20%; bottom:20%; width:3px; border-radius:3px; background:var(--accent); }
+.avatar { width:40px; height:40px; border-radius:12px; display:grid; place-items:center; font-weight:600; font-size:15px; color:#fff; flex-shrink:0; position:relative; overflow:hidden; }
+.avatar__dot { position:absolute; right:-2px; bottom:-2px; width:12px; height:12px; border-radius:50%; background:var(--online); border:2px solid var(--panel); opacity:0; transition:opacity var(--transition); }
+.avatar__dot.on { opacity:1; }
+.contact__body { flex:1; min-width:0; }
+.contact__name { font-weight:600; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:6px; }
+.contact__name .star { color:#fbbf24; flex-shrink:0; }
+.contact__preview { font-size:12px; color:var(--text-mute); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+.contact__actions { display:flex; gap:2px; opacity:0; transition:opacity var(--transition); }
+.contact:hover .contact__actions, .contact.active .contact__actions { opacity:1; }
+.contact__actions .btn--icon { width:28px; height:28px; padding:4px; }
+.contact__actions .btn--icon:hover { color:var(--danger); }
+.empty { padding:40px 20px; text-align:center; color:var(--text-mute); font-size:13px; line-height:1.6; }
+.quick-add { margin:8px; padding:10px 12px; border-radius:10px; background:var(--accent-soft); border:1px dashed var(--accent); color:var(--text); font-size:13px; font-weight:500; display:flex; align-items:center; gap:8px; cursor:pointer; transition:all var(--transition); }
+.quick-add:hover { background:var(--accent); color:#fff; border-style:solid; }
+.main { display:flex; flex-direction:column; min-width:0; background:var(--bg); }
+.topbar { height:64px; padding:0 20px; display:flex; align-items:center; gap:12px; background:var(--panel); border-bottom:1px solid var(--border); }
+.topbar__info { flex:1; min-width:0; }
+.topbar__name { font-weight:600; font-size:14.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.topbar__status { font-size:12px; color:var(--text-mute); display:flex; align-items:center; gap:5px; }
+.topbar__status.online { color:var(--online); }
+.topbar__status .dot { width:7px; height:7px; border-radius:50%; background:currentColor; box-shadow:0 0 0 3px color-mix(in srgb, currentColor 20%, transparent); }
+.topbar__status.online .dot { animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100% { box-shadow:0 0 0 3px color-mix(in srgb, var(--online) 20%, transparent); } 50% { box-shadow:0 0 0 6px color-mix(in srgb, var(--online) 5%, transparent); } }
+.menu-toggle { display:none; }
+.chat { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:4px; scroll-behavior:smooth; }
+.chat-empty { flex:1; display:grid; place-items:center; text-align:center; padding:40px; }
+.chat-empty__icon { width:72px; height:72px; border-radius:20px; background:var(--panel); color:var(--accent); display:grid; place-items:center; margin:0 auto 16px; box-shadow:var(--shadow); }
+.chat-empty h2 { font-size:17px; font-weight:600; margin-bottom:6px; }
+.chat-empty p { color:var(--text-mute); font-size:13px; max-width:300px; }
+.day-divider { align-self:center; font-size:11px; font-weight:600; color:var(--text-mute); background:var(--panel); padding:4px 12px; border-radius:20px; margin:12px 0 8px; text-transform:uppercase; letter-spacing:.4px; }
+.msg-row { display:flex; gap:8px; animation:msgIn .22s ease-out; max-width:75%; }
+.msg-row.me { align-self:flex-end; flex-direction:row-reverse; }
+.msg-row + .msg-row { margin-top:2px; }
+.msg-row.tail { margin-top:10px; }
+@keyframes msgIn { from { opacity:0; transform:translateY(8px) scale(.98); } to { opacity:1; transform:translateY(0) scale(1); } }
+.msg-bubble { padding:8px 13px; border-radius:16px; background:var(--panel); border:1px solid var(--border); font-size:14px; word-wrap:break-word; position:relative; box-shadow:0 1px 2px rgba(0,0,0,.15); }
+.msg-row.me .msg-bubble { background:var(--me); color:var(--me-text); border:none; border-bottom-right-radius:5px; }
+.msg-row.them .msg-bubble { border-bottom-left-radius:5px; }
+.msg-bubble .time { font-size:10px; opacity:.65; margin-left:10px; float:right; margin-top:2px; white-space:nowrap; }
+.msg-row.me .msg-bubble .time { color:rgba(255,255,255,.8); }
+.msg-row.them .msg-bubble .time { color:var(--text-mute); }
+.composer { padding:14px 20px 18px; background:var(--panel); border-top:1px solid var(--border); display:flex; gap:10px; align-items:flex-end; }
+.composer__field { flex:1; display:flex; align-items:center; gap:8px; background:var(--panel-2); border:1px solid var(--border); border-radius:22px; padding:4px 4px 4px 16px; transition:border-color var(--transition), box-shadow var(--transition); }
+.composer__field:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.composer__field input { flex:1; background:none; border:none; font-size:14px; padding:8px 0; }
+.composer__field input::placeholder { color:var(--text-mute); }
+.send-btn { width:38px; height:38px; border-radius:50%; background:var(--accent); color:#fff; display:grid; place-items:center; transition:all var(--transition); flex-shrink:0; }
+.send-btn:hover:not(:disabled) { background:var(--accent-2); transform:scale(1.06); }
+.send-btn:disabled { opacity:.4; cursor:not-allowed; }
+.theme-toggle { width:34px; height:34px; border-radius:10px; display:grid; place-items:center; background:var(--panel-2); color:var(--text-dim); border:1px solid var(--border); transition:all var(--transition); }
+.theme-toggle:hover { color:var(--text); background:var(--hover); }
+.overlay { position:fixed; inset:0; background:var(--overlay); opacity:0; pointer-events:none; transition:opacity var(--transition); z-index:20; }
+.overlay.show { opacity:1; pointer-events:auto; }
+.modal { position:fixed; inset:0; display:grid; place-items:center; z-index:100; padding:20px; opacity:0; pointer-events:none; transition:opacity var(--transition); }
+.modal.show { opacity:1; pointer-events:auto; }
+.modal__backdrop { position:absolute; inset:0; background:var(--overlay); }
+.modal__box { position:relative; background:var(--panel); border:1px solid var(--border); border-radius:18px; box-shadow:var(--shadow); width:100%; max-width:400px; padding:24px; transform:translateY(10px) scale(.98); transition:transform var(--transition); }
+.modal.show .modal__box { transform:translateY(0) scale(1); }
+.modal__title { font-size:17px; font-weight:700; margin-bottom:6px; }
+.modal__sub { font-size:13px; color:var(--text-mute); margin-bottom:18px; }
+.modal__field { margin-bottom:14px; }
+.modal__field label { display:block; font-size:12px; font-weight:600; color:var(--text-dim); margin-bottom:6px; text-transform:uppercase; letter-spacing:.4px; }
+.modal__field input { width:100%; padding:10px 12px; background:var(--panel-2); border:1px solid var(--border); border-radius:10px; font-size:14px; }
+.modal__field input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.modal__error { font-size:12px; color:var(--danger); margin-top:-8px; margin-bottom:12px; min-height:16px; }
+.modal__actions { display:flex; gap:10px; justify-content:flex-end; margin-top:6px; }
+.modal__actions .btn { padding:10px 18px; }
+@media (max-width:800px) { .app { grid-template-columns:1fr; } .sidebar { position:fixed; inset:0 auto 0 0; width:86vw; max-width:340px; transform:translateX(-100%); box-shadow:var(--shadow); } .sidebar.open { transform:translateX(0); } .menu-toggle { display:grid; place-items:center; } .msg-row { max-width:88%; } .chat { padding:14px; } .composer { padding:10px 12px 14px; } }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="overlay" id="overlay"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar__top">
+      <div class="brand">
+        <div class="brand__logo">P</div>
+        <div style="flex:1">
+          <div class="brand__name">P2P Messenger</div>
+          <div class="brand__sub">webConnect · без сервера</div>
+        </div>
+        <button class="theme-toggle" id="themeBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
+      </div>
+
+      <div class="login-row">
+        <input id="myId" placeholder="Ваш ID (alice-123)" autocomplete="off">
+        <button class="btn" id="connectBtn">Войти</button>
+      </div>
+
+      <div class="search-wrap">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="searchInput" placeholder="Поиск или добавление по ID...">
+      </div>
+
+      <button class="btn btn--ghost" id="addContactBtn" style="width:100%">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Добавить контакт
+      </button>
+    </div>
+
+    <div class="contacts" id="contacts"></div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="btn--icon menu-toggle" id="menuBtn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="avatar" id="topAvatar" style="width:38px;height:38px;font-size:14px;background:#334155">?</div>
+      <div class="topbar__info">
+        <div class="topbar__name" id="peerName">Выберите собеседника</div>
+        <div class="topbar__status" id="status"><span class="dot"></span><span id="statusText">не подключено</span></div>
+      </div>
+    </header>
+
+    <div class="chat" id="chat">
+      <div class="chat-empty" id="chatEmpty">
+        <div>
+          <div class="chat-empty__icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+          </div>
+          <h2>Начните беседу</h2>
+          <p>Введите свой ID слева, затем нажмите «Добавить контакт» и введите ID собеседника.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="composer">
+      <div class="composer__field">
+        <input id="msgInput" placeholder="Сообщение..." disabled>
+      </div>
+      <button class="send-btn" id="sendBtn" disabled title="Отправить">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </main>
+</div>
+
+<div class="modal" id="modal">
+  <div class="modal__backdrop" data-close></div>
+  <div class="modal__box" role="dialog" aria-labelledby="modalTitle">
+    <div class="modal__title" id="modalTitle">Новый контакт</div>
+    <div class="modal__sub">Введите ID собеседника. Он должен быть онлайн, чтобы установить соединение.</div>
+    <div class="modal__field">
+      <label for="modalId">ID собеседника</label>
+      <input id="modalId" placeholder="например, bob-456" autocomplete="off">
+    </div>
+    <div class="modal__field">
+      <label for="modalName">Имя (необязательно)</label>
+      <input id="modalName" placeholder="Как сохранить в контактах" autocomplete="off">
+    </div>
+    <div class="modal__error" id="modalError"></div>
+    <div class="modal__actions">
+      <button class="btn btn--ghost" data-close>Отмена</button>
+      <button class="btn" id="modalSubmit">Добавить</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+// webConnect.js: использует публичные сети для сигналинга
+import webconnect from 'https://cdn.jsdelivr.net/npm/webconnect/dist/esm/webconnect.js';
+
+/* ================= STORAGE ================= */
+const LS = { me:'wc_me', contacts:'wc_contacts', history:'wc_history', theme:'wc_theme' };
+const load = (k, f) => { try { return JSON.parse(localStorage.getItem(k)) ?? f; } catch { return f; } };
+const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+
+/* ================= STATE ================= */
+let connect = null;
+let activePeer = null;
+let filter = '';
+let myId = '';
+let contacts = load(LS.contacts, []);
+let history = load(LS.history, {});
+let onlinePeers = new Set(); // Кто сейчас в сети
+
+/* ================= DOM ================= */
+const $ = id => document.getElementById(id);
+const els = {
+  myId:$('myId'), connectBtn:$('connectBtn'), searchInput:$('searchInput'),
+  addContactBtn:$('addContactBtn'), contacts:$('contacts'),
+  peerName:$('peerName'), status:$('status'), statusText:$('statusText'),
+  chat:$('chat'), chatEmpty:$('chatEmpty'),
+  msgInput:$('msgInput'), sendBtn:$('sendBtn'), topAvatar:$('topAvatar'),
+  sidebar:$('sidebar'), overlay:$('overlay'), menuBtn:$('menuBtn'),
+  themeBtn:$('themeBtn'), modal:$('modal'), modalId:$('modalId'),
+  modalName:$('modalName'), modalError:$('modalError'), modalSubmit:$('modalSubmit')
+};
+
+/* ================= UTILS ================= */
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const now = () => Date.now();
+const timeStr = ts => new Date(ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+const dateStr = ts => new Date(ts).toLocaleDateString('ru-RU', {day:'numeric', month:'long'});
+
+function avatarColor(seed) {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 360;
+  return `linear-gradient(135deg, hsl(${h},65%,52%), hsl(${(h+40)%360},65%,45%))`;
+}
+function initials(name) {
+  const clean = name.replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0].slice(0,2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+function avatarHtml(name, size = 40, radius = 12) {
+  return `<div class="avatar" style="width:${size}px;height:${size}px;font-size:${size*0.38}px;background:${avatarColor(name)};border-radius:${radius}px">${esc(initials(name))}</div>`;
+}
+
+/* ================= SOUND & TITLE NOTIFICATION ================= */
+let originalTitle = document.title;
+let titleInterval = null;
+const msgSound = new Audio('https://assets.mixkit.co/sfx/download/mixkit-message-pop-alert-2354.wav');
+msgSound.volume = 0.5;
+
+function playNotifySound() {
+  msgSound.currentTime = 0;
+  msgSound.play().catch(() => {});
+}
+
+function startTitleNotification() {
+  if (titleInterval) return;
+  let toggle = false;
+  titleInterval = setInterval(() => {
+    document.title = toggle ? '🔴 Новое сообщение!' : originalTitle;
+    toggle = !toggle;
+  }, 1000);
+}
+
+function stopTitleNotification() {
+  if (titleInterval) {
+    clearInterval(titleInterval);
+    titleInterval = null;
+    document.title = originalTitle;
+  }
+}
+
+window.addEventListener('focus', stopTitleNotification);
+window.addEventListener('blur', () => {
+  if (document.querySelector('.msg-row.me')?.classList.contains('unread')) {
+    // логика мигания, если окно не в фокусе
+  }
+});
+
+/* ================= THEME ================= */
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  save(LS.theme, theme);
+  els.themeBtn.innerHTML = theme === 'dark'
+    ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>'
+    : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+}
+els.themeBtn.addEventListener('click', () => {
+  applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+});
+
+/* ================= SIDEBAR ================= */
+function openSidebar() { els.sidebar.classList.add('open'); els.overlay.classList.add('show'); }
+function closeSidebar() { els.sidebar.classList.remove('open'); els.overlay.classList.remove('show'); }
+els.menuBtn.addEventListener('click', openSidebar);
+els.overlay.addEventListener('click', closeSidebar);
+
+/* ================= MODAL ================= */
+function openModal(prefillId = '') {
+  els.modalId.value = prefillId;
+  els.modalName.value = '';
+  els.modalError.textContent = '';
+  els.modal.classList.add('show');
+  setTimeout(() => els.modalId.focus(), 50);
+}
+function closeModal() { els.modal.classList.remove('show'); }
+
+els.modal.addEventListener('click', (e) => {
+  if (e.target.closest('[data-close]')) closeModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && els.modal.classList.contains('show')) closeModal();
+});
+
+els.modalId.addEventListener('keydown', (e) => { if (e.key === 'Enter') els.modalName.focus(); });
+els.modalName.addEventListener('keydown', (e) => { if (e.key === 'Enter') els.modalSubmit.click(); });
+
+els.modalSubmit.addEventListener('click', () => {
+  const id = els.modalId.value.trim();
+  const name = els.modalName.value.trim();
+
+  if (!id) { els.modalError.textContent = 'Введите ID собеседника'; return; }
+  if (!/^[a-zA-Z0-9_-]+$/.test(id)) { els.modalError.textContent = 'ID: только буквы, цифры, _ и -'; return; }
+  if (id.length < 3) { els.modalError.textContent = 'ID должен быть не короче 3 символов'; return; }
+  if (id === myId) { els.modalError.textContent = 'Это ваш собственный ID'; return; }
+
+  const existing = findContact(id);
+  if (existing) { closeModal(); openChat(id); return; }
+
+  upsertContact(id, name || id, false);
+  closeModal();
+  openChat(id);
+});
+
+/* ================= CONTACTS ================= */
+const findContact = id => contacts.find(c => c.id === id);
+
+function upsertContact(id, name, friend) {
+  let c = findContact(id);
+  if (c) {
+    if (name && name !== id) c.name = name;
+    if (friend) c.friend = true;
+  } else {
+    contacts.push({ id, name: name || id, friend: !!friend });
+  }
+  save(LS.contacts, contacts);
+  renderContacts();
+}
+function removeContact(id) {
+  contacts = contacts.filter(c => c.id !== id);
+  save(LS.contacts, contacts);
+  if (activePeer === id) closeChat();
+  renderContacts();
+}
+function toggleFriend(id) {
+  const c = findContact(id); if (!c) return;
+  c.friend = !c.friend;
+  save(LS.contacts, contacts);
+  renderContacts();
+}
+
+function lastMessagePreview(id) {
+  const list = history[id];
+  if (!list || !list.length) return 'Нет сообщений';
+  const last = list[list.length - 1];
+  return (last.mine ? 'Вы: ' : '') + last.text.slice(0, 60);
+}
+
+function renderContacts() {
+  const q = filter.trim().toLowerCase();
+  const list = contacts
+    .filter(c => !q || c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q))
+    .sort((a, b) => (b.friend - a.friend) || (a.name.localeCompare(b.name)));
+
+  let html = '';
+
+  if (q && !list.some(c => c.id.toLowerCase() === q)) {
+    html += `
+      <div class="quick-add" data-quickadd="${esc(filter.trim())}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Добавить «${esc(filter.trim())}» как контакт
+      </div>`;
+  }
+
+  if (!list.length) {
+    html += `<div class="empty">${contacts.length
+      ? 'Ничего не найдено'
+      : 'Пока нет контактов.<br>Нажмите «Добавить контакт» выше.'}</div>`;
+    els.contacts.innerHTML = html;
+    bindQuickAdd();
+    return;
+  }
+
+  const friends = list.filter(c => c.friend);
+  const others = list.filter(c => !c.friend);
+
+  const renderItem = c => {
+    const isOnline = onlinePeers.has(c.id);
+    return `
+    <div class="contact ${c.id === activePeer ? 'active' : ''}" data-id="${esc(c.id)}">
+      <div style="position:relative">
+        ${avatarHtml(c.name, 40, 12)}
+        <div class="avatar__dot ${isOnline ? 'on' : ''}"></div>
+      </div>
+      <div class="contact__body">
+        <div class="contact__name">${c.friend ? '<span class="star">★</span>' : ''}${esc(c.name)}</div>
+        <div class="contact__preview">${esc(lastMessagePreview(c.id))}</div>
+      </div>
+      <div class="contact__actions">
+        <button class="btn--icon" data-act="friend" data-id="${esc(c.id)}" title="${c.friend ? 'Убрать из друзей' : 'В друзья'}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="${c.friend ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </button>
+        <button class="btn--icon" data-act="del" data-id="${esc(c.id)}" title="Удалить">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>`;
+  };
+
+  if (friends.length) html += `<div class="section-label">Друзья</div>` + friends.map(renderItem).join('');
+  if (others.length) html += `<div class="section-label">Контакты</div>` + others.map(renderItem).join('');
+  els.contacts.innerHTML = html;
+  bindQuickAdd();
+}
+
+function bindQuickAdd() {
+  const qa = els.contacts.querySelector('.quick-add');
+  if (qa) qa.addEventListener('click', () => openModal(qa.dataset.quickadd));
+}
+
+els.contacts.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-act]');
+  const item = e.target.closest('.contact');
+  if (btn) {
+    e.stopPropagation();
+    const id = btn.dataset.id;
+    if (btn.dataset.act === 'friend') toggleFriend(id);
+    if (btn.dataset.act === 'del' && confirm('Удалить контакт?')) removeContact(id);
+    return;
+  }
+  if (item) openChat(item.dataset.id);
+});
+
+/* ================= CHAT ================= */
+function closeChat() {
+  activePeer = null;
+  els.peerName.textContent = 'Выберите собеседника';
+  els.topAvatar.style.background = '#334155';
+  els.topAvatar.textContent = '?';
+  setStatus('не подключено', false);
+  enableComposer(false);
+  renderChat();
+}
+
+function openChat(peerId) {
+  activePeer = peerId;
+  const c = findContact(peerId);
+  upsertContact(peerId, c?.name || peerId, c?.friend);
+  const name = c?.name || peerId;
+
+  els.peerName.textContent = name;
+  els.topAvatar.style.background = avatarColor(name);
+  els.topAvatar.textContent = initials(name);
+
+  const isOnline = onlinePeers.has(peerId);
+  setStatus(isOnline ? 'в сети' : 'не в сети', isOnline);
+  enableComposer(isOnline);
+
+  renderContacts();
+  renderChat();
+  closeSidebar();
+}
+
+function renderChat() {
+  els.chat.innerHTML = '';
+  if (!activePeer) {
+    els.chat.appendChild(els.chatEmpty);
+    els.chatEmpty.style.display = '';
+    return;
+  }
+  const list = history[activePeer] || [];
+  if (!list.length) {
+    els.chat.innerHTML = '<div class="empty">История пуста.<br>Напишите первое сообщение.</div>';
+    return;
+  }
+  let lastDay = '', lastMine = null;
+  list.forEach(m => {
+    const day = dateStr(m.ts);
+    if (day !== lastDay) {
+      const div = document.createElement('div');
+      div.className = 'day-divider';
+      div.textContent = day;
+      els.chat.appendChild(div);
+      lastDay = day; lastMine = null;
+    }
+    const row = document.createElement('div');
+    row.className = 'msg-row ' + (m.mine ? 'me' : 'them');
+    if (lastMine !== m.mine) row.classList.add('tail');
+    row.innerHTML = `<div class="msg-bubble">${esc(m.text)}<span class="time">${timeStr(m.ts)}</span></div>`;
+    els.chat.appendChild(row);
+    lastMine = m.mine;
+  });
+  els.chat.scrollTop = els.chat.scrollHeight;
+}
+
+function addMessage(peerId, text, mine) {
+  if (!history[peerId]) history[peerId] = [];
+  history[peerId].push({ text, mine, ts: now() });
+  if (history[peerId].length > 1000) history[peerId] = history[peerId].slice(-1000);
+  save(LS.history, history);
+  
+  if (peerId === activePeer) {
+    renderChat();
+  } else if (!mine) {
+    playNotifySound();
+    startTitleNotification();
+  }
+  renderContacts();
+}
+
+function enableComposer(on) {
+  els.msgInput.disabled = !on;
+  els.sendBtn.disabled = !on;
+  if (on) els.msgInput.focus();
+}
+function setStatus(text, online) {
+  els.statusText.textContent = text;
+  els.status.classList.toggle('online', !!online);
+}
+
+/* ================= WEBCONNECT ================= */
+async function doConnect() {
+  const id = els.myId.value.trim();
+  if (!id) { alert('Введите свой ID'); return; }
+  if (!/^[a-zA-Z0-9_-]+$/.test(id) || id.length < 3) { alert('ID: 3+ символа (буквы, цифры, _, -)'); return; }
+
+  els.connectBtn.disabled = true;
+  els.connectBtn.textContent = '...';
+  els.myId.disabled = true;
+  myId = id;
+  save(LS.me, id);
+
+  try {
+    connect = webconnect({
+      appName: 'p2p-webconnect-messenger-prod-v1',
+      channelName: 'room-' + id,
+    });
+
+    connect.onConnect((attribute) => {
+      console.log('Connected:', attribute.connectId);
+      onlinePeers.add(attribute.connectId);
+      upsertContact(attribute.connectId, findContact(attribute.connectId)?.name || attribute.connectId);
+      renderContacts();
+      if (attribute.connectId === activePeer) {
+        setStatus('в сети', true);
+        enableComposer(true);
+      }
+    });
+
+    connect.onDisconnect((attribute) => {
+      console.log('Disconnected:', attribute.connectId);
+      onlinePeers.delete(attribute.connectId);
+      renderContacts();
+      if (attribute.connectId === activePeer) {
+        setStatus('не в сети', false);
+        enableComposer(false);
+      }
+    });
+
+    connect.onReceive((data, attribute) => {
+      const text = typeof data === 'string' ? data : (data && data.text) || '';
+      if (!text) return;
+      upsertContact(attribute.connectId, findContact(attribute.connectId)?.name || attribute.connectId);
+      addMessage(attribute.connectId, text, false);
+      if (attribute.connectId === activePeer) enableComposer(true);
+    });
+
+    setStatus('онлайн: ' + id, true);
+    els.connectBtn.textContent = 'Вошли';
+    renderContacts();
+  } catch (err) {
+    console.error('webConnect error:', err);
+    setStatus('ошибка сети', false);
+    els.connectBtn.disabled = false;
+    els.connectBtn.textContent = 'Войти';
+    els.myId.disabled = false;
+    alert('Не удалось подключиться к сети. Проверьте интернет и попробуйте снова.');
+  }
+}
+
+function sendMessage() {
+  const text = els.msgInput.value.trim();
+  if (!text || !activePeer || !connect) return;
+
+  connect.Send(text, { connectId: activePeer });
+  addMessage(activePeer, text, true);
+  els.msgInput.value = '';
+  els.msgInput.focus();
+}
+
+/* ================= EVENTS ================= */
+els.connectBtn.addEventListener('click', doConnect);
+els.searchInput.addEventListener('input', (e) => { filter = e.target.value; renderContacts(); });
+els.addContactBtn.addEventListener('click', () => openModal());
+els.sendBtn.addEventListener('click', sendMessage);
+els.msgInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+
+/* ================= INIT ================= */
+(function init() {
+  applyTheme(load(LS.theme, 'dark'));
+  const savedMe = load(LS.me, '');
+  if (savedMe) { els.myId.value = savedMe; doConnect(); }
+  renderContacts();
+  renderChat();
+  if (window.innerWidth > 800) els.sidebar.classList.add('open');
+})();
+</script>
+</body>
+</html>
