@@ -385,7 +385,6 @@ function renderContacts() {
 
   const renderItem = c => {
     const isOnline = onlinePeers.has(c.id);
-    // Технический ID убран из списка, отображается только имя
     return `
     <div class="contact ${c.id === activePeer ? 'active' : ''}" data-id="${esc(c.id)}">
       <div style="position:relative">
@@ -448,7 +447,6 @@ function openChat(peerId) {
   upsertContact(peerId, c?.name || peerId, c?.friend);
   const name = c?.name || peerId;
 
-  // В шапке выводим Имя и ID (ID в бейджике для справки)
   els.peerName.innerHTML = `
     ${esc(name)} 
     <span class="topbar__id">${esc(peerId)}</span>
@@ -522,7 +520,7 @@ function setStatus(text, online) {
   els.status.classList.toggle('online', !!online);
 }
 
-/* ================= WEBCONNECT ================= */
+/* ================= WEBCONNECT (С TURN-СЕРВЕРОМ) ================= */
 async function doConnect() {
   const id = els.myId.value.trim();
   if (!id) { alert('Введите свой ID'); return; }
@@ -538,6 +536,23 @@ async function doConnect() {
     connect = webconnect({
       appName: 'p2p-webconnect-messenger-prod-v1',
       channelName: 'room-' + id,
+      // ДОБАВЛЕНЫ TURN И STUN СЕРВЕРЫ
+      iceConfiguration: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:global.stun.twilio.com:3478' },
+          {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          },
+          {
+            urls: 'turn:openrelay.metered.ca:443',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          }
+        ]
+      }
     });
 
     connect.onConnect((attribute) => {
@@ -639,4 +654,4 @@ els.msgInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMes
 })();
 </script>
 </body>
-</html>
+  </html>
