@@ -81,11 +81,9 @@ input, textarea { outline:none; }
 .topbar__status.online .dot { animation:pulse 2s infinite; }
 @keyframes pulse { 0%,100% { box-shadow:0 0 0 3px color-mix(in srgb, var(--online) 20%, transparent); } 50% { box-shadow:0 0 0 6px color-mix(in srgb, var(--online) 5%, transparent); } }
 
-/* Кнопки звонков в шапке */
 .call-actions { display:flex; gap:6px; margin-left:auto; }
 .call-btn { width:38px; height:38px; border-radius:50%; display:grid; place-items:center; background:var(--panel-2); color:var(--text-dim); border:1px solid var(--border); transition:all var(--transition); }
 .call-btn:hover { background:var(--accent-soft); color:var(--accent); border-color:var(--accent); }
-.call-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
 
 /* Чат с правильной прокруткой */
 .chat-container { flex:1; position:relative; display:flex; flex-direction:column; min-height:0; }
@@ -702,7 +700,6 @@ async function startCall(type) {
     els.localVideo.muted = true;
     els.videoOverlay.classList.add('show');
     
-    // Отправляем сигнал вызова
     connect.Send({ type: 'call-request', callType: type, senderName: myName }, { connectId: activePeer });
     
   } catch (err) {
@@ -730,10 +727,7 @@ async function acceptCall() {
     els.localVideo.muted = true;
     els.videoOverlay.classList.add('show');
     
-    // Отправляем подтверждение
     connect.Send({ type: 'call-accept', callType: type }, { connectId: peerId });
-    
-    // Открываем поток
     connect.openStreaming(localStream, { connectId: peerId, metadata: { type: 'call' } });
     
   } catch (err) {
@@ -779,7 +773,6 @@ els.endCallBtn.addEventListener('click', endCall);
 els.acceptCallBtn.addEventListener('click', acceptCall);
 els.declineCallBtn.addEventListener('click', declineCall);
 
-// Toggle mic/cam
 els.toggleMicBtn.addEventListener('click', () => {
   if (!localStream) return;
   const audioTrack = localStream.getAudioTracks()[0];
@@ -814,9 +807,29 @@ async function doConnect() {
       channelName: 'room-' + id,
       iceConfiguration: {
         iceServers: [
+          // STUN-серверы
           { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-          { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' },
+          
+          // TURN-серверы (OpenRelay - публичный)
+          {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          },
+          {
+            urls: 'turn:openrelay.metered.ca:443',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          },
+          {
+            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          }
         ]
       }
     });
@@ -835,7 +848,6 @@ async function doConnect() {
       if (isCallActive && attr.connectId === activePeer) cleanupCall();
     });
 
-    // Входящий поток (видео/аудио)
     connect.onStreaming((stream, attr) => {
       if (attr.connectId === activePeer) {
         els.remoteVideo.srcObject = stream;
@@ -850,7 +862,6 @@ async function doConnect() {
       }
       if (data.type === 'msg') { upsertContact(attr.connectId, findContact(attr.connectId)?.name || attr.connectId); addMessage(attr.connectId, data.payload, false, data.senderName); }
       
-      // Call signals
       if (data.type === 'call-request') {
         incomingCallData = { peerId: attr.connectId, type: data.callType };
         const c = findContact(attr.connectId);
@@ -925,4 +936,4 @@ els.msgInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMes
 })();
 </script>
 </body>
-</html>
+          </html>
