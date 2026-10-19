@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>P2P Messenger Pro (Fast Sync)</title>
+<title>P2P Messenger Pro</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -29,7 +29,10 @@ input, textarea { outline:none; }
 
 /* ============ SIDEBAR ============ */
 .sidebar { background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; min-width:0; transition:transform var(--transition); z-index:30; }
-@media (max-width:900px) { .sidebar { position:fixed; inset:0 auto 0 0; width:85vw; max-width:360px; transform:translateX(-100%); box-shadow:var(--shadow); } .sidebar.open { transform:translateX(0); } }
+@media (max-width:900px) {
+  .sidebar { position:fixed; inset:0 auto 0 0; width:85vw; max-width:360px; transform:translateX(-100%); box-shadow:var(--shadow); }
+  .sidebar.open { transform:translateX(0); }
+}
 .sidebar__top { padding:16px 16px 12px; display:flex; flex-direction:column; gap:12px; border-bottom:1px solid var(--border); }
 .brand { display:flex; align-items:center; gap:12px; }
 .brand__logo { width:38px; height:38px; border-radius:12px; background:var(--me); display:grid; place-items:center; color:#fff; font-weight:700; font-size:18px; box-shadow:0 4px 16px rgba(79,140,255,.4); flex-shrink:0; }
@@ -53,20 +56,16 @@ input, textarea { outline:none; }
 .search-wrap input:focus { border-color:var(--accent); background:var(--bg-elev); box-shadow:0 0 0 3px var(--accent-soft); }
 
 .contacts { flex:1; overflow-y:auto; padding:8px; }
-.section-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.6px; color:var(--text-mute); padding:12px 12px 6px; }
 .contact { display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:var(--radius-sm); cursor:pointer; transition:background var(--transition); position:relative; }
 .contact:hover { background:var(--hover); }
 .contact.active { background:var(--accent-soft); }
 .contact.active::before { content:''; position:absolute; left:0; top:20%; bottom:20%; width:3px; border-radius:3px; background:var(--accent); }
 .avatar { width:44px; height:44px; border-radius:14px; display:grid; place-items:center; font-weight:600; font-size:16px; color:#fff; flex-shrink:0; position:relative; overflow:hidden; }
-.avatar img { width:100%; height:100%; object-fit:cover; }
 .avatar__dot { position:absolute; right:-2px; bottom:-2px; width:12px; height:12px; border-radius:50%; background:var(--online); border:2px solid var(--panel); opacity:0; transition:opacity var(--transition); }
 .avatar__dot.on { opacity:1; box-shadow: 0 0 8px var(--online); }
 .contact__body { flex:1; min-width:0; }
 .contact__name { font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:6px; }
-.contact__name .star { color:#fbbf24; flex-shrink:0; font-size:12px; }
-.contact__preview { font-size:12px; color:var(--text-mute); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; display:flex; align-items:center; gap:4px; }
-.contact__preview.unread { color:var(--text); font-weight:500; }
+.contact__preview { font-size:12px; color:var(--text-mute); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
 .unread-badge { background:var(--accent); color:#fff; font-size:10px; font-weight:700; padding:2px 6px; border-radius:10px; margin-left:auto; flex-shrink:0; }
 
 /* ============ MAIN ============ */
@@ -103,18 +102,16 @@ input, textarea { outline:none; }
 .msg-bubble { padding:10px 14px; border-radius:18px; background:var(--panel); border:1px solid var(--border); font-size:14.5px; word-wrap:break-word; position:relative; box-shadow:0 1px 3px rgba(0,0,0,.1); line-height:1.5; }
 .msg-row.me .msg-bubble { background:var(--me); color:var(--me-text); border:none; border-bottom-right-radius:6px; }
 .msg-row.them .msg-bubble { border-bottom-left-radius:6px; }
-.msg-bubble .time { font-size:10.5px; opacity:.6; margin-left:12px; float:right; margin-top:4px; white-space:nowrap; display:flex; align-items:center; gap:4px; }
+.msg-bubble .time { font-size:10.5px; opacity:.6; margin-left:12px; float:right; margin-top:4px; white-space:nowrap; }
 .msg-row.me .msg-bubble .time { color:rgba(255,255,255,.85); }
 .msg-row.them .msg-bubble .time { color:var(--text-mute); }
 .msg-bubble img { max-width:100%; border-radius:12px; margin-top:6px; display:block; cursor:pointer; }
 
-/* Цитата ответа */
-.msg-bubble .reply-quote { background:rgba(0,0,0,.15); border-left:3px solid var(--accent); padding:6px 10px; border-radius:6px; margin-bottom:8px; font-size:12px; opacity:.8; cursor:pointer; transition: opacity 0.2s; }
-.msg-bubble .reply-quote:hover { opacity: 1; background: rgba(0,0,0,.25); }
+.reply-quote { background:rgba(0,0,0,.15); border-left:3px solid var(--accent); padding:6px 10px; border-radius:6px; margin-bottom:8px; font-size:12px; opacity:.8; cursor:pointer; transition: opacity 0.2s; }
+.reply-quote:hover { opacity: 1; background: rgba(0,0,0,.25); }
 .msg-row.me .reply-quote { background:rgba(255,255,255,.15); border-color:#fff; }
 .msg-row.me .reply-quote:hover { background: rgba(255,255,255,.25); }
 
-/* File Message */
 .file-msg { display:flex; align-items:center; gap:12px; background:rgba(0,0,0,.15); padding:8px 12px; border-radius:10px; margin-top:6px; text-decoration:none; color:inherit; }
 .file-msg:hover { background:rgba(0,0,0,.25); }
 .file-icon { width:32px; height:32px; background:var(--accent); border-radius:8px; display:grid; place-items:center; color:#fff; flex-shrink:0; }
@@ -122,35 +119,24 @@ input, textarea { outline:none; }
 .file-name { font-weight:600; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .file-size { font-size:11px; opacity:.7; }
 
-/* Composer */
 .composer { padding:16px 24px 20px; background:var(--panel); border-top:1px solid var(--border); display:flex; gap:12px; align-items:flex-end; position:relative; z-index:10; }
 @media (max-width:900px) { .composer { padding:12px 16px 16px; } }
 .composer__field { flex:1; display:flex; align-items:center; gap:10px; background:var(--panel-2); border:1px solid var(--border); border-radius:24px; padding:6px 6px 6px 16px; transition:border-color var(--transition), box-shadow var(--transition); }
 .composer__field:focus-within { border-color:var(--accent); box-shadow:0 0 0 4px var(--accent-soft); }
 .composer__field input { flex:1; background:none; border:none; font-size:14.5px; padding:8px 0; }
-.composer__field input::placeholder { color:var(--text-mute); }
 .send-btn { width:42px; height:42px; border-radius:50%; background:var(--accent); color:#fff; display:grid; place-items:center; transition:all var(--transition); flex-shrink:0; }
 .send-btn:hover:not(:disabled) { background:var(--accent-2); transform:scale(1.05) rotate(-5deg); }
 .send-btn:disabled { opacity:.4; cursor:not-allowed; background:var(--text-mute); }
 
-/* Reply Bar */
 .reply-bar { display:none; background:var(--panel-2); border-left:3px solid var(--accent); padding:8px 16px; font-size:13px; align-items:center; justify-content:space-between; border-radius:0 8px 8px 0; margin-bottom:8px; }
 .reply-bar.show { display:flex; }
 .reply-bar__content { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-dim); }
 .reply-bar__close { color:var(--text-mute); cursor:pointer; padding:4px; }
-.reply-bar__close:hover { color:var(--text); }
 
-/* Emoji Picker */
-.emoji-btn { font-size:20px; width:42px; height:42px; display:grid; place-items:center; border-radius:50%; transition:all var(--transition); cursor:pointer; }
-.emoji-btn:hover { background:var(--hover); }
 .emoji-picker { position:absolute; bottom:80px; right:24px; background:var(--panel); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow); padding:12px; display:none; grid-template-columns:repeat(5, 1fr); gap:8px; z-index:50; animation:msgIn .2s; }
 .emoji-picker.show { display:grid; }
-.emoji-picker span { font-size:24px; cursor:pointer; padding:4px; border-radius:8px; text-align:center; transition:background var(--transition); }
+.emoji-picker span { font-size:24px; cursor:pointer; padding:4px; border-radius:8px; text-align:center; }
 .emoji-picker span:hover { background:var(--panel-2); }
-
-/* Attach Menu */
-.attach-btn { color:var(--text-mute); transition:color var(--transition); padding:8px; }
-.attach-btn:hover { color:var(--accent); }
 
 /* ============ MODAL ============ */
 .modal { position:fixed; inset:0; display:grid; place-items:center; z-index:100; padding:20px; opacity:0; pointer-events:none; transition:opacity var(--transition); }
@@ -163,8 +149,6 @@ input, textarea { outline:none; }
 .modal__field { margin-bottom:16px; }
 .modal__field label { display:block; font-size:11px; font-weight:600; color:var(--text-dim); margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px; }
 .modal__field input { width:100%; padding:12px 14px; background:var(--panel-2); border:1px solid var(--border); border-radius:10px; font-size:14px; }
-.modal__field input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
-.modal__error { font-size:12px; color:var(--danger); margin-top:-8px; margin-bottom:12px; min-height:16px; }
 .modal__actions { display:flex; gap:10px; justify-content:flex-end; margin-top:8px; }
 
 /* Utility */
@@ -172,6 +156,10 @@ input, textarea { outline:none; }
 .overlay.show { opacity:1; pointer-events:auto; }
 .menu-toggle { display:none; }
 @media (max-width:900px) { .menu-toggle { display:grid; } }
+
+/* Кнопка выхода */
+.logout-btn { color: var(--danger); }
+.logout-btn:hover { background: var(--danger-soft); color: var(--danger); }
 </style>
 </head>
 <body>
@@ -186,14 +174,17 @@ input, textarea { outline:none; }
         <div class="brand__logo">P</div>
         <div style="flex:1">
           <div class="brand__name">P2P Pro</div>
-          <div class="brand__sub">webConnect · Fast Sync</div>
+          <div class="brand__sub">webConnect</div>
         </div>
         <button class="btn--icon" id="themeBtn" title="Сменить тему">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
         </button>
+        <button class="btn--icon logout-btn" id="logoutBtn" title="Выйти" style="display:none;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
       </div>
 
-      <div class="login-row">
+      <div class="login-row" id="loginBox">
         <input id="myId" placeholder="Ваш ID (alice-123)" autocomplete="off">
         <button class="btn" id="connectBtn">Войти</button>
       </div>
@@ -326,7 +317,7 @@ const els = {
   modalName:$('modalName'), modalError:$('modalError'), modalSubmit:$('modalSubmit'),
   fileInput:$('fileInput'), attachBtn:$('attachBtn'), emojiBtn:$('emojiBtn'),
   emojiPicker:$('emojiPicker'), replyBar:$('replyBar'), replyText:$('replyText'),
-  replyClose:$('replyClose')
+  replyClose:$('replyClose'), logoutBtn:$('logoutBtn'), loginBox:$('loginBox')
 };
 
 /* ================= UTILS ================= */
@@ -369,6 +360,42 @@ function openSidebar() { els.sidebar.classList.add('open'); els.overlay.classLis
 function closeSidebar() { els.sidebar.classList.remove('open'); els.overlay.classList.remove('show'); }
 els.menuBtn.addEventListener('click', openSidebar);
 els.overlay.addEventListener('click', closeSidebar);
+
+/* ================= LOGOUT ================= */
+els.logoutBtn.addEventListener('click', () => {
+  if (!confirm('Вы уверены, что хотите выйти?')) return;
+
+  // Отключаем таймеры
+  clearInterval(heartbeatInterval);
+  clearInterval(uiUpdateInterval);
+  clearTimeout(typingTimeout);
+  
+  // Закрываем соединение (если есть метод)
+  if (connect && typeof connect.close === 'function') {
+    try { connect.close(); } catch(e) {}
+  }
+  connect = null;
+  onlinePeers.clear();
+  
+  // Очищаем состояние
+  myId = '';
+  activePeer = null;
+  save(LS.me, '');
+  
+  // Обновляем UI
+  els.myId.disabled = false;
+  els.connectBtn.disabled = false;
+  els.connectBtn.textContent = 'Войти';
+  els.loginBox.style.display = 'flex';
+  els.logoutBtn.style.display = 'none';
+  
+  closeChat();
+  renderContacts();
+  closeSidebar();
+  
+  // Сбрасываем статус
+  setStatus('не подключено', false);
+});
 
 /* ================= MODAL ================= */
 function openModal(prefillId = '') {
@@ -502,10 +529,11 @@ function openChat(peerId) {
   unreadCounts[peerId] = 0;
   renderContacts();
   renderChat();
-  closeSidebar();
+  
+  // На мобильных устройствах при выборе чата сайдбар закрывается
+  if (window.innerWidth <= 900) closeSidebar();
 }
 
-// Функция для плавной прокрутки к сообщению и подсветки
 function scrollToMessage(msgId) {
   const targetRow = document.getElementById(`msg-${msgId}`);
   if (targetRow) {
@@ -513,7 +541,7 @@ function scrollToMessage(msgId) {
     targetRow.classList.add('highlight');
     setTimeout(() => {
       targetRow.classList.remove('highlight');
-    }, 2000); // Подсветка исчезнет через 2 секунды
+    }, 2000);
   }
 }
 
@@ -542,11 +570,10 @@ function renderChat() {
     }
     const row = document.createElement('div');
     row.className = 'msg-row ' + (m.mine ? 'me' : 'them');
-    row.id = `msg-${m.ts}`; // Присваиваем уникальный ID на основе таймстампа
+    row.id = `msg-${m.ts}`;
     if (lastMine !== m.mine) row.classList.add('tail');
     
     let content = '';
-    // Если есть ответ, рендерим цитату с data-атрибутом для клика
     if (m.reply) {
       content += `<div class="reply-quote" data-reply-ts="${m.reply.ts}">
         <b>${esc(m.reply.name)}:</b> ${esc(m.reply.text.slice(0, 30))}...
@@ -578,7 +605,6 @@ function renderChat() {
   });
   els.chat.scrollTop = els.chat.scrollHeight;
 
-  // Добавляем обработчик клика на все цитаты в чате
   document.querySelectorAll('.reply-quote').forEach(quote => {
     quote.addEventListener('click', (e) => {
       const ts = Number(e.currentTarget.dataset.replyTs);
@@ -731,6 +757,7 @@ async function doConnect() {
     setStatus('онлайн: ' + id, true);
     els.connectBtn.textContent = 'Вошли';
     renderContacts();
+    els.logoutBtn.style.display = 'grid'; // Показываем кнопку выхода
 
     heartbeatInterval = setInterval(() => {
       if (!connect) return;
@@ -807,11 +834,16 @@ els.msgInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMes
 (function init() {
   applyTheme(load(LS.theme, 'dark'));
   const savedMe = load(LS.me, '');
-  if (savedMe) { els.myId.value = savedMe; doConnect(); }
+  if (savedMe) { 
+    els.myId.value = savedMe; 
+    doConnect(); 
+  } else {
+    els.logoutBtn.style.display = 'none';
+  }
   renderContacts();
   renderChat();
   if (window.innerWidth > 900) els.sidebar.classList.add('open');
 })();
 </script>
 </body>
-  </html>
+          </html>
