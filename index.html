@@ -256,7 +256,7 @@ input, textarea { outline:none; }
         <div class="brand__logo">P</div>
         <div style="flex:1">
           <div class="brand__name">P2P Pro</div>
-          <div class="brand__sub">webConnect</div>
+          <div class="brand__sub">MQTT Relay</div>
         </div>
         <button class="btn--icon" id="themeBtn" title="Сменить тему">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -417,7 +417,8 @@ input, textarea { outline:none; }
 </div>
 
 <script type="module">
-import webconnect from 'https://cdn.jsdelivr.net/npm/webconnect/dist/esm/webconnect.js';
+// ВАЖНО: Используем MQTT вместо WebTorrent/Nostr, так как трекеры блокируются провайдером
+import { joinRoom } from 'https://cdn.jsdelivr.net/npm/trystero@0.25.4/mqtt.min.js';
 
 /* ================= STORAGE ================= */
 const LS = { me:'wc_me', myName: 'wc_myName', contacts:'wc_contacts', history:'wc_history', theme:'wc_theme' };
@@ -425,7 +426,12 @@ const load = (k, f) => { try { return JSON.parse(localStorage.getItem(k)) ?? f; 
 const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
 /* ================= STATE ================= */
-let connect = null;
+let room = null;
+let sendMsgAction = null;
+let sendTypingAction = null;
+let sendCallAction = null;
+let openStreamAction = null;
+
 let activePeer = null;
 let filter = '';
 let myId = '';
@@ -442,8 +448,8 @@ let uiUpdateInterval = null;
 // Call state
 let localStream = null;
 let isCallActive = false;
-let callType = null; // 'audio' | 'video'
-let incomingCallData = null; // { peerId, type }
+let callType = null;
+let incomingCallData = null;
 
 /* ================= DOM ================= */
 const $ = id => document.getElementById(id);
@@ -460,7 +466,6 @@ const els = {
   emojiPicker:$('emojiPicker'), replyBar:$('replyBar'), replyText:$('replyText'),
   replyClose:$('replyClose'), logoutBtn:$('logoutBtn'), loginBox:$('loginBox'),
   scrollDownBtn:$('scrollDownBtn'),
-  // Call elements
   audioCallBtn:$('audioCallBtn'), videoCallBtn:$('videoCallBtn'),
   videoOverlay:$('videoOverlay'), remoteVideo:$('remoteVideo'), localVideo:$('localVideo'),
   toggleMicBtn:$('toggleMicBtn'), toggleCamBtn:$('toggleCamBtn'), endCallBtn:$('endCallBtn'),
@@ -516,10 +521,8 @@ els.logoutBtn.addEventListener('click', () => {
   clearInterval(heartbeatInterval);
   clearInterval(uiUpdateInterval);
   clearTimeout(typingTimeout);
-  if (connect && typeof connect.close === 'function') {
-    try { connect.close(); } catch(e) {}
-  }
-  connect = null;
+  if (room) { try { room.leave(); } catch(e) {} }
+  room = null;
   onlinePeers.clear();
   myId = ''; myName = ''; activePeer = null;
   save(LS.me, ''); save(LS.myName, '');
@@ -677,7 +680,7 @@ els.fileInput.addEventListener('change', (e) => {
     const dataUrl = ev.target.result; const isImage = file.type.startsWith('image/');
     const msg = { file: { url: dataUrl, name: file.name, size: file.size, isImage } };
     if (replyingTo) { msg.reply = { name: myName, text: replyingTo.text || 'Файл', ts: replyingTo.ts }; replyingTo = null; els.replyBar.classList.remove('show'); }
-    connect.Send({ type: 'msg', payload: msg, senderName: myName }, { connectId: activePeer });
+    sendMsgAction.send({ type: 'msg', payload: msg, senderName: myName }, { target: activePeer });
     addMessage(activePeer, msg, true);
   };
   reader.readAsDataURL(file); els.fileInput.value = '';
@@ -685,7 +688,7 @@ els.fileInput.addEventListener('change', (e) => {
 
 /* ================= CALL FUNCTIONS ================= */
 async function startCall(type) {
-  if (!activePeer || !connect) return;
+  if (!activePeer || !room) return;
   if (isCallActive) return;
   callType = type;
   isCallActive = true;
@@ -700,7 +703,7 @@ async function startCall(type) {
     els.localVideo.muted = true;
     els.videoOverlay.classList.add('show');
     
-    connect.Send({ type: 'call-request', callType: type, senderName: myName }, { connectId: activePeer });
+    sendCallAction.send({ type: 'call-request', callType: type, senderName: myName }, { target: activePeer });
     
   } catch (err) {
     console.error('Call error:', err);
@@ -727,8 +730,8 @@ async function acceptCall() {
     els.localVideo.muted = true;
     els.videoOverlay.classList.add('show');
     
-    connect.Send({ type: 'call-accept', callType: type }, { connectId: peerId });
-    connect.openStreaming(localStream, { connectId: peerId, metadata: { type: 'call' } });
+    sendCallAction.send({ type: 'call-accept', callType: type }, { target: peerId });
+    openStreamAction(localStream, { target: peerId });
     
   } catch (err) {
     console.error('Accept call error:', err);
@@ -739,7 +742,7 @@ async function acceptCall() {
 
 function declineCall() {
   if (incomingCallData) {
-    connect.Send({ type: 'call-decline' }, { connectId: incomingCallData.peerId });
+    sendCallAction.send({ type: 'call-decline' }, { target: incomingCallData.peerId });
     incomingCallData = null;
   }
   els.incomingCall.classList.remove('show');
@@ -747,9 +750,8 @@ function declineCall() {
 }
 
 function endCall() {
-  if (activePeer && connect) {
-    connect.Send({ type: 'call-end' }, { connectId: activePeer });
-    connect.closeStreaming(null, { connectId: activePeer });
+  if (activePeer && room) {
+    sendCallAction.send({ type: 'call-end' }, { target: activePeer });
   }
   cleanupCall();
 }
@@ -790,7 +792,7 @@ els.toggleCamBtn.addEventListener('click', () => {
   }
 });
 
-/* ================= WEBCONNECT & FAST SYNC ================= */
+/* ================= TRYSTERO (MQTT) ================= */
 async function doConnect() {
   const id = els.myId.value.trim();
   const name = els.myName.value.trim();
@@ -802,70 +804,79 @@ async function doConnect() {
   save(LS.me, id); save(LS.myName, name);
 
   try {
-    connect = webconnect({
-      appName: 'p2p-webconnect-pro-v1',
-      channelName: 'room-' + id,
-      iceConfiguration: {
+    // Инициализация комнаты через MQTT
+    room = joinRoom({ 
+      appId: 'p2p-messenger-pro-mqtt', 
+      rtcConfig: {
         iceServers: [
-          // STUN-серверы
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
-          { urls: 'stun:stun3.l.google.com:19302' },
-          { urls: 'stun:stun4.l.google.com:19302' },
-          
-          // TURN-серверы (OpenRelay - публичный)
-          {
-            urls: 'turn:openrelay.metered.ca:80',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-          },
-          {
-            urls: 'turn:openrelay.metered.ca:443',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-          },
-          {
-            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-          }
+          { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+          { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
         ]
       }
-    });
+    }, 'room-' + id);
 
-    connect.onConnect((attr) => {
-      onlinePeers.add(attr.connectId);
-      upsertContact(attr.connectId, findContact(attr.connectId)?.name || attr.connectId);
-      renderContacts();
-      if (attr.connectId === activePeer) { setStatus('в сети', true); enableComposer(true); }
-    });
+    sendMsgAction = room.makeAction('msg');
+    sendTypingAction = room.makeAction('typing');
+    sendCallAction = room.makeAction('call');
+    openStreamAction = room.addStream;
 
-    connect.onDisconnect((attr) => {
-      onlinePeers.delete(attr.connectId);
-      renderContacts();
-      if (attr.connectId === activePeer) { setStatus('не в сети', false); enableComposer(false); }
-      if (isCallActive && attr.connectId === activePeer) cleanupCall();
-    });
-
-    connect.onStreaming((stream, attr) => {
-      if (attr.connectId === activePeer) {
+    // Обработка входящего потока (видео/аудио)
+    room.onPeerStream((stream, peerId) => {
+      if (peerId === activePeer) {
         els.remoteVideo.srcObject = stream;
       }
     });
 
-    connect.onReceive((data, attr) => {
-      if (data.type === 'ping') { onlinePeers.add(attr.connectId); if (data.senderName) updateContactName(attr.connectId, data.senderName); return; }
-      if (data.type === 'typing') {
-        if (attr.connectId === activePeer) { setStatus('печатает...', true, true); clearTimeout(typingTimeout); typingTimeout = setTimeout(() => { if (onlinePeers.has(attr.connectId)) setStatus('в сети', true); }, 2000); }
+    // Обработка подключения
+    room.onPeerJoin(peerId => {
+      onlinePeers.add(peerId);
+      upsertContact(peerId, findContact(peerId)?.name || peerId);
+      renderContacts();
+      if (peerId === activePeer) { setStatus('в сети', true); enableComposer(true); }
+      // Отправляем пинг с именем, чтобы собеседник узнал нас
+      sendTypingAction.send({ type: 'ping', senderName: myName }, { target: peerId });
+    });
+
+    // Обработка отключения
+    room.onPeerLeave(peerId => {
+      onlinePeers.delete(peerId);
+      renderContacts();
+      if (peerId === activePeer) { setStatus('не в сети', false); enableComposer(false); }
+      if (isCallActive && peerId === activePeer) cleanupCall();
+    });
+
+    // Обработка сообщений
+    sendMsgAction.onMessage = (data, peerId) => {
+      upsertContact(peerId, findContact(peerId)?.name || peerId);
+      addMessage(peerId, data.payload, false, data.senderName);
+    };
+
+    // Обработка статуса "печатает" и пингов
+    sendTypingAction.onMessage = (data, peerId) => {
+      if (data.type === 'ping') {
+        onlinePeers.add(peerId);
+        if (data.senderName) updateContactName(peerId, data.senderName);
         return;
       }
-      if (data.type === 'msg') { upsertContact(attr.connectId, findContact(attr.connectId)?.name || attr.connectId); addMessage(attr.connectId, data.payload, false, data.senderName); }
-      
+      if (data.type === 'typing') {
+        if (peerId === activePeer) {
+          setStatus('печатает...', true, true);
+          clearTimeout(typingTimeout);
+          typingTimeout = setTimeout(() => {
+            if (onlinePeers.has(peerId)) setStatus('в сети', true);
+          }, 2000);
+        }
+      }
+    };
+
+    // Обработка сигналов звонка
+    sendCallAction.onMessage = (data, peerId) => {
       if (data.type === 'call-request') {
-        incomingCallData = { peerId: attr.connectId, type: data.callType };
-        const c = findContact(attr.connectId);
-        const displayName = c?.name || data.senderName || attr.connectId;
+        incomingCallData = { peerId, type: data.callType };
+        const c = findContact(peerId);
+        const displayName = c?.name || data.senderName || peerId;
         els.incomingAvatar.style.background = avatarColor(displayName);
         els.incomingAvatar.textContent = initials(displayName);
         els.incomingName.textContent = displayName;
@@ -873,25 +884,29 @@ async function doConnect() {
         els.incomingCall.classList.add('show');
       }
       if (data.type === 'call-accept' && isCallActive) {
-        connect.openStreaming(localStream, { connectId: attr.connectId, metadata: { type: 'call' } });
+        openStreamAction(localStream, { target: peerId });
       }
       if (data.type === 'call-decline') { cleanupCall(); alert('Собеседник отклонил звонок'); }
       if (data.type === 'call-end') { cleanupCall(); }
-    });
+    };
 
     setStatus('онлайн: ' + id, true);
     els.connectBtn.textContent = 'Вошли';
     renderContacts();
     els.logoutBtn.style.display = 'grid';
 
+    // Пинг для поддержания статуса
     heartbeatInterval = setInterval(() => {
-      if (!connect) return;
-      onlinePeers.forEach(peerId => { connect.Send({ type: 'ping', senderName: myName }, { connectId: peerId }); });
-    }, 200);
+      if (!room) return;
+      onlinePeers.forEach(peerId => {
+        sendTypingAction.send({ type: 'ping', senderName: myName }, { target: peerId });
+      });
+    }, 2000);
 
     uiUpdateInterval = setInterval(() => { if (contacts.length > 0) renderContacts(); }, 200);
 
   } catch (err) {
+    console.error('Connection error:', err);
     setStatus('ошибка', false);
     els.connectBtn.disabled = false; els.connectBtn.textContent = 'Войти';
     els.myId.disabled = false; els.myName.disabled = false;
@@ -899,12 +914,12 @@ async function doConnect() {
   }
 }
 
-function sendTyping() { if (!activePeer || !connect) return; connect.Send({ type: 'typing', senderName: myName }, { connectId: activePeer }); }
+function sendTyping() { if (!activePeer || !room) return; sendTypingAction.send({ type: 'typing' }, { target: activePeer }); }
 function sendMessage() {
-  const text = els.msgInput.value.trim(); if (!text && !replyingTo) return; if (!activePeer || !connect) return;
+  const text = els.msgInput.value.trim(); if (!text && !replyingTo) return; if (!activePeer || !room) return;
   const msg = { type: 'msg', payload: { text }, senderName: myName };
   if (replyingTo) { msg.payload.reply = { name: myName, text: replyingTo.text || 'Файл', ts: replyingTo.ts }; replyingTo = null; els.replyBar.classList.remove('show'); }
-  connect.Send(msg, { connectId: activePeer });
+  sendMsgAction.send(msg, { target: activePeer });
   addMessage(activePeer, msg.payload, true);
   els.msgInput.value = ''; els.msgInput.focus();
 }
@@ -936,4 +951,4 @@ els.msgInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMes
 })();
 </script>
 </body>
-          </html>
+    </html>
