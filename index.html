@@ -69,8 +69,8 @@ input, textarea { outline:none; }
 .unread-badge { background:var(--accent); color:#fff; font-size:10px; font-weight:700; padding:2px 6px; border-radius:10px; margin-left:auto; flex-shrink:0; }
 
 /* ============ MAIN ============ */
-.main { display:flex; flex-direction:column; min-width:0; background:var(--bg); position:relative; }
-.topbar { height:68px; padding:0 24px; display:flex; align-items:center; gap:14px; background:var(--panel); border-bottom:1px solid var(--border); z-index:10; }
+.main { display:flex; flex-direction:column; min-width:0; background:var(--bg); position:relative; overflow:hidden; }
+.topbar { height:68px; padding:0 24px; display:flex; align-items:center; gap:14px; background:var(--panel); border-bottom:1px solid var(--border); z-index:10; flex-shrink:0; }
 @media (max-width:900px) { .topbar { padding:0 16px; } }
 .topbar__info { flex:1; min-width:0; }
 .topbar__name { font-weight:600; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:8px; }
@@ -82,8 +82,10 @@ input, textarea { outline:none; }
 .topbar__status.online .dot { animation:pulse 2s infinite; }
 @keyframes pulse { 0%,100% { box-shadow:0 0 0 3px color-mix(in srgb, var(--online) 20%, transparent); } 50% { box-shadow:0 0 0 6px color-mix(in srgb, var(--online) 5%, transparent); } }
 
-.chat { flex:1; overflow-y:auto; padding:24px; display:flex; flex-direction:column; gap:4px; scroll-behavior:smooth; position:relative; }
-@media (max-width:900px) { .chat { padding:16px; } }
+/* Чат с правильной прокруткой */
+.chat-container { flex:1; position:relative; display:flex; flex-direction:column; min-height:0; }
+.chat { flex:1; overflow-y:auto; padding:24px 24px 100px 24px; display:flex; flex-direction:column; gap:4px; scroll-behavior:smooth; position:relative; }
+@media (max-width:900px) { .chat { padding:16px 16px 90px 16px; } }
 .chat-empty { flex:1; display:grid; place-items:center; text-align:center; padding:40px; }
 .chat-empty__icon { width:80px; height:80px; border-radius:24px; background:var(--panel); color:var(--accent); display:grid; place-items:center; margin:0 auto 20px; box-shadow:var(--shadow); }
 .chat-empty h2 { font-size:18px; font-weight:600; margin-bottom:8px; }
@@ -110,7 +112,6 @@ input, textarea { outline:none; }
 .reply-quote { background:rgba(0,0,0,.15); border-left:3px solid var(--accent); padding:6px 10px; border-radius:6px; margin-bottom:8px; font-size:12px; opacity:.8; cursor:pointer; transition: opacity 0.2s; }
 .reply-quote:hover { opacity: 1; background: rgba(0,0,0,.25); }
 .msg-row.me .reply-quote { background:rgba(255,255,255,.15); border-color:#fff; }
-.msg-row.me .reply-quote:hover { background: rgba(255,255,255,.25); }
 
 .file-msg { display:flex; align-items:center; gap:12px; background:rgba(0,0,0,.15); padding:8px 12px; border-radius:10px; margin-top:6px; text-decoration:none; color:inherit; }
 .file-msg:hover { background:rgba(0,0,0,.25); }
@@ -119,8 +120,47 @@ input, textarea { outline:none; }
 .file-name { font-weight:600; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .file-size { font-size:11px; opacity:.7; }
 
-.composer { padding:16px 24px 20px; background:var(--panel); border-top:1px solid var(--border); display:flex; gap:12px; align-items:flex-end; position:relative; z-index:10; }
-@media (max-width:900px) { .composer { padding:12px 16px 16px; } }
+/* Floating Scroll Down Button */
+.scroll-down-btn {
+  position: absolute;
+  right: 24px;
+  bottom: 100px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all var(--transition);
+  z-index: 20;
+  box-shadow: var(--shadow);
+}
+.scroll-down-btn.show { opacity: 1; transform: translateY(0); }
+.scroll-down-btn:hover { background: var(--panel); color: var(--text); }
+@media (max-width:900px) { .scroll-down-btn { right: 16px; bottom: 90px; } }
+
+/* Composer Overlay */
+.composer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 16px 24px 20px;
+  background: rgba(21, 27, 38, 0.85); /* Fallback */
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  z-index: 10;
+}
+@media (max-width:900px) { .composer { padding: 12px 16px 16px; } }
 .composer__field { flex:1; display:flex; align-items:center; gap:10px; background:var(--panel-2); border:1px solid var(--border); border-radius:24px; padding:6px 6px 6px 16px; transition:border-color var(--transition), box-shadow var(--transition); }
 .composer__field:focus-within { border-color:var(--accent); box-shadow:0 0 0 4px var(--accent-soft); }
 .composer__field input { flex:1; background:none; border:none; font-size:14.5px; padding:8px 0; }
@@ -157,9 +197,8 @@ input, textarea { outline:none; }
 .menu-toggle { display:none; }
 @media (max-width:900px) { .menu-toggle { display:grid; } }
 
-/* Кнопка выхода */
 .logout-btn { color: var(--danger); }
-.logout-btn:hover { background: var(--danger-soft); color: var(--danger); }
+.logout-btn:hover { background: rgba(220,38,38,.1); color: var(--danger); }
 </style>
 </head>
 <body>
@@ -216,45 +255,53 @@ input, textarea { outline:none; }
       </div>
     </header>
 
-    <div class="chat" id="chat">
-      <div class="chat-empty" id="chatEmpty">
-        <div>
-          <div class="chat-empty__icon">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+    <div class="chat-container">
+      <div class="chat" id="chat">
+        <div class="chat-empty" id="chatEmpty">
+          <div>
+            <div class="chat-empty__icon">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            </div>
+            <h2>Добро пожаловать</h2>
+            <p>Введите свой ID слева, чтобы начать. Ваши сообщения защищены и передаются напрямую.</p>
           </div>
-          <h2>Добро пожаловать</h2>
-          <p>Введите свой ID слева, чтобы начать. Ваши сообщения защищены и передаются напрямую.</p>
         </div>
       </div>
-    </div>
 
-    <div class="composer">
-      <div style="display:flex; flex-direction:column; width:100%;">
-        <div class="reply-bar" id="replyBar">
-          <div class="reply-bar__content" id="replyText"></div>
-          <div class="reply-bar__close" id="replyClose">✕</div>
-        </div>
-        <div style="display:flex; gap:12px; align-items:center;">
-          <button class="attach-btn" id="attachBtn" title="Прикрепить файл">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-          </button>
-          <input type="file" id="fileInput" style="display:none">
-          
-          <div class="composer__field">
-            <input id="msgInput" placeholder="Сообщение..." disabled>
-            <button class="emoji-btn" id="emojiBtn">😊</button>
+      <!-- Кнопка скролла вниз -->
+      <button class="scroll-down-btn" id="scrollDownBtn" title="Вниз">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+
+      <!-- Оверлей для отправки -->
+      <div class="composer" id="composer">
+        <div style="display:flex; flex-direction:column; width:100%;">
+          <div class="reply-bar" id="replyBar">
+            <div class="reply-bar__content" id="replyText"></div>
+            <div class="reply-bar__close" id="replyClose">✕</div>
           </div>
-          
-          <button class="send-btn" id="sendBtn" disabled title="Отправить">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-          </button>
+          <div style="display:flex; gap:12px; align-items:center;">
+            <button class="attach-btn" id="attachBtn" title="Прикрепить файл">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            </button>
+            <input type="file" id="fileInput" style="display:none">
+            
+            <div class="composer__field">
+              <input id="msgInput" placeholder="Сообщение..." disabled>
+              <button class="emoji-btn" id="emojiBtn">😊</button>
+            </div>
+            
+            <button class="send-btn" id="sendBtn" disabled title="Отправить">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
         </div>
-      </div>
-      <!-- Emoji Picker -->
-      <div class="emoji-picker" id="emojiPicker">
-        <span>😀</span><span>😂</span><span>😍</span><span>😎</span><span>😭</span>
-        <span>🤔</span><span>👍</span><span>🔥</span><span>❤️</span><span>🎉</span>
-        <span>🙏</span><span>💯</span><span>🤯</span><span>😡</span><span>🤝</span>
+        <!-- Emoji Picker -->
+        <div class="emoji-picker" id="emojiPicker">
+          <span>😀</span><span>😂</span><span>😍</span><span>😎</span><span>😭</span>
+          <span>🤔</span><span>👍</span><span>🔥</span><span>❤️</span><span>🎉</span>
+          <span>🙏</span><span>💯</span><span>🤯</span><span>😡</span><span>🤝</span>
+        </div>
       </div>
     </div>
   </main>
@@ -310,14 +357,15 @@ const els = {
   myId:$('myId'), connectBtn:$('connectBtn'), searchInput:$('searchInput'),
   addContactBtn:$('addContactBtn'), contacts:$('contacts'),
   peerName:$('peerName'), status:$('status'), statusText:$('statusText'),
-  chat:$('chat'), chatEmpty:$('chatEmpty'),
+  chat:$('chat'), chatEmpty:$('chatEmpty'), chatContainer:document.querySelector('.chat-container'),
   msgInput:$('msgInput'), sendBtn:$('sendBtn'), topAvatar:$('topAvatar'),
   sidebar:$('sidebar'), overlay:$('overlay'), menuBtn:$('menuBtn'),
   themeBtn:$('themeBtn'), modal:$('modal'), modalId:$('modalId'),
   modalName:$('modalName'), modalError:$('modalError'), modalSubmit:$('modalSubmit'),
   fileInput:$('fileInput'), attachBtn:$('attachBtn'), emojiBtn:$('emojiBtn'),
   emojiPicker:$('emojiPicker'), replyBar:$('replyBar'), replyText:$('replyText'),
-  replyClose:$('replyClose'), logoutBtn:$('logoutBtn'), loginBox:$('loginBox')
+  replyClose:$('replyClose'), logoutBtn:$('logoutBtn'), loginBox:$('loginBox'),
+  scrollDownBtn:$('scrollDownBtn')
 };
 
 /* ================= UTILS ================= */
@@ -364,25 +412,20 @@ els.overlay.addEventListener('click', closeSidebar);
 /* ================= LOGOUT ================= */
 els.logoutBtn.addEventListener('click', () => {
   if (!confirm('Вы уверены, что хотите выйти?')) return;
-
-  // Отключаем таймеры
   clearInterval(heartbeatInterval);
   clearInterval(uiUpdateInterval);
   clearTimeout(typingTimeout);
   
-  // Закрываем соединение (если есть метод)
   if (connect && typeof connect.close === 'function') {
     try { connect.close(); } catch(e) {}
   }
   connect = null;
   onlinePeers.clear();
   
-  // Очищаем состояние
   myId = '';
   activePeer = null;
   save(LS.me, '');
   
-  // Обновляем UI
   els.myId.disabled = false;
   els.connectBtn.disabled = false;
   els.connectBtn.textContent = 'Войти';
@@ -392,8 +435,6 @@ els.logoutBtn.addEventListener('click', () => {
   closeChat();
   renderContacts();
   closeSidebar();
-  
-  // Сбрасываем статус
   setStatus('не подключено', false);
 });
 
@@ -444,12 +485,6 @@ function removeContact(id) {
   contacts = contacts.filter(c => c.id !== id);
   save(LS.contacts, contacts);
   if (activePeer === id) closeChat();
-  renderContacts();
-}
-function toggleFriend(id) {
-  const c = findContact(id); if (!c) return;
-  c.friend = !c.friend;
-  save(LS.contacts, contacts);
   renderContacts();
 }
 
@@ -530,7 +565,6 @@ function openChat(peerId) {
   renderContacts();
   renderChat();
   
-  // На мобильных устройствах при выборе чата сайдбар закрывается
   if (window.innerWidth <= 900) closeSidebar();
 }
 
@@ -539,9 +573,7 @@ function scrollToMessage(msgId) {
   if (targetRow) {
     targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
     targetRow.classList.add('highlight');
-    setTimeout(() => {
-      targetRow.classList.remove('highlight');
-    }, 2000);
+    setTimeout(() => targetRow.classList.remove('highlight'), 2000);
   }
 }
 
@@ -603,7 +635,12 @@ function renderChat() {
     els.chat.appendChild(row);
     lastMine = m.mine;
   });
-  els.chat.scrollTop = els.chat.scrollHeight;
+  
+  // Прокрутка вниз после рендера
+  requestAnimationFrame(() => {
+    els.chat.scrollTop = els.chat.scrollHeight;
+    toggleScrollDownBtn();
+  });
 
   document.querySelectorAll('.reply-quote').forEach(quote => {
     quote.addEventListener('click', (e) => {
@@ -612,6 +649,16 @@ function renderChat() {
     });
   });
 }
+
+/* ================= SCROLL DOWN LOGIC ================= */
+function toggleScrollDownBtn() {
+  const diff = els.chat.scrollHeight - els.chat.scrollTop - els.chat.clientHeight;
+  els.scrollDownBtn.classList.toggle('show', diff > 300);
+}
+els.chat.addEventListener('scroll', toggleScrollDownBtn);
+els.scrollDownBtn.addEventListener('click', () => {
+  els.chat.scrollTo({ top: els.chat.scrollHeight, behavior: 'smooth' });
+});
 
 function addMessage(peerId, msg, mine) {
   if (!history[peerId]) history[peerId] = [];
@@ -757,7 +804,7 @@ async function doConnect() {
     setStatus('онлайн: ' + id, true);
     els.connectBtn.textContent = 'Вошли';
     renderContacts();
-    els.logoutBtn.style.display = 'grid'; // Показываем кнопку выхода
+    els.logoutBtn.style.display = 'grid';
 
     heartbeatInterval = setInterval(() => {
       if (!connect) return;
@@ -846,4 +893,4 @@ els.msgInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMes
 })();
 </script>
 </body>
-          </html>
+  </html>
