@@ -190,7 +190,7 @@ input, textarea { outline:none; }
         <div class="brand__logo">P</div>
         <div style="flex:1">
           <div class="brand__name">P2P Pro</div>
-          <div class="brand__sub">MQTT Relay</div>
+          <div class="brand__sub">Nostr Relay</div>
         </div>
         <button class="btn--icon" id="themeBtn" title="Сменить тему">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -349,23 +349,32 @@ input, textarea { outline:none; }
 </div>
 
 <script type="module">
-// Динамический импорт
+// 1. Импорт Nostr
 let joinRoom = null;
 try {
-  const module = await import('https://cdn.jsdelivr.net/npm/@trystero-p2p/mqtt@0.25.4/+esm');
+  const module = await import('https://cdn.jsdelivr.net/npm/@trystero-p2p/nostr@0.25.4/+esm');
   joinRoom = module.joinRoom;
 } catch (e) {
   console.warn("Ошибка CDN, пробуем esm.sh...", e);
   try {
-    const module = await import('https://esm.sh/@trystero-p2p/mqtt@0.25.4');
+    const module = await import('https://esm.sh/@trystero-p2p/nostr@0.25.4');
     joinRoom = module.joinRoom;
   } catch (e2) {
-    console.error("Не удалось загрузить библиотеку MQTT", e2);
+    console.error("Не удалось загрузить библиотеку Nostr", e2);
+    alert("Не удалось загрузить сетевую библиотеку. Проверьте интернет.");
   }
 }
 
 /* ================= STORAGE ================= */
-const LS = { me:'wc_me', myName: 'wc_myName', contacts:'wc_contacts', history:'wc_history', theme:'wc_theme', mappings:'wc_mappings' };
+// ПРЕФИКС NOSTR_ ДЛЯ ВСЕХ КЛЮЧЕЙ
+const LS = { 
+  me: 'nostr_me', 
+  myName: 'nostr_myName', 
+  contacts: 'nostr_contacts', 
+  history: 'nostr_history', 
+  theme: 'nostr_theme', 
+  mappings: 'nostr_mappings' 
+};
 const load = (k, f) => { try { return JSON.parse(localStorage.getItem(k)) ?? f; } catch { return f; } };
 const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
@@ -375,7 +384,7 @@ let sendMsgAction = null;
 let sendTypingAction = null;
 let sendCallAction = null;
 
-let activePeer = null; // ID контакта
+let activePeer = null;
 let filter = '';
 let myId = '';
 let myName = '';
@@ -492,6 +501,7 @@ els.modalSubmit.addEventListener('click', () => {
 
 /* ================= CONTACTS ================= */
 const findContact = id => contacts.find(c => c.id === id);
+const findContactByHash = hash => contacts.find(c => peerMappings[c.id] === hash);
 
 function updateContactName(id, name) {
   let c = findContact(id);
@@ -760,7 +770,7 @@ els.toggleCamBtn.addEventListener('click', () => {
   }
 });
 
-/* ================= TRYSTERO (MQTT) ================= */
+/* ================= TRYSTERO (NOSTR) ================= */
 async function doConnect() {
   if (!joinRoom) { alert('Сетевая библиотека недоступна. Проверьте интернет.'); return; }
   const id = els.myId.value.trim();
@@ -777,7 +787,13 @@ async function doConnect() {
 
   try {
     room = joinRoom({ 
-      appId: 'p2p-messenger-pro-mqtt-global', 
+      appId: 'p2p-pro-nostr', 
+      relayUrls: [
+        'wss://relay.damus.io',
+        'wss://nos.lol',
+        'wss://relay.nostr.band',
+        'wss://relay.primal.net'
+      ],
       rtcConfig: {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
@@ -786,7 +802,7 @@ async function doConnect() {
           { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
         ]
       }
-    }, 'global-chat-room');
+    }, 'global-room');
 
     sendMsgAction = room.makeAction('msg');
     sendTypingAction = room.makeAction('typing');
@@ -801,22 +817,29 @@ async function doConnect() {
 
     room.onPeerJoin(peerHash => {
       onlinePeers.add(peerHash);
-      // Не вызываем renderContacts здесь, ждем пинга
       sendTypingAction.send({ type: 'ping', senderName: myName, senderId: myId }, { target: peerHash });
     });
 
     room.onPeerLeave(peerHash => {
       onlinePeers.delete(peerHash);
-      // Очищаем маппинг
+      
+      // Находим ID контакта до удаления маппинга
       const contactId = Object.keys(peerMappings).find(k => peerMappings[k] === peerHash);
+      
+      // Сначала обновляем UI, если открыт этот чат
+      if (contactId === activePeer) { 
+        setStatus('не в сети', false); 
+        enableComposer(false); 
+      }
+      if (isCallActive && contactId === activePeer) cleanupCall();
+      
+      // Удаляем маппинг в самом конце
       if (contactId) {
         delete peerMappings[contactId];
         save(LS.mappings, peerMappings);
       }
-      renderContacts();
       
-      if (contactId === activePeer) { setStatus('не в сети', false); enableComposer(false); }
-      if (isCallActive && contactId === activePeer) cleanupCall();
+      renderContacts();
     });
 
     sendMsgAction.onMessage = (data, peerHash) => {
@@ -833,7 +856,7 @@ async function doConnect() {
         if (data.senderId) {
           updateMapping(data.senderId, peerHash);
           updateContactName(data.senderId, data.senderName);
-          renderContacts(); // Обновляем UI после пинга
+          renderContacts();
         }
         return;
       }
@@ -842,7 +865,6 @@ async function doConnect() {
           setStatus('печатает...', true, true);
           clearTimeout(typingTimeout);
           typingTimeout = setTimeout(() => {
-            // Повторная проверка, чтобы не перебить статус другого чата
             if (activePeer === data.senderId) {
               const hash = peerMappings[data.senderId];
               if (onlinePeers.has(hash)) setStatus('в сети', true);
@@ -855,7 +877,10 @@ async function doConnect() {
     sendCallAction.onMessage = (data, peerHash) => {
       if (data.type === 'call-request') {
         incomingCallData = { hash: peerHash, type: data.callType };
-        const displayName = data.senderName || peerHash;
+        
+        const knownContact = findContactByHash(peerHash);
+        const displayName = knownContact ? knownContact.name : (data.senderName || peerHash);
+        
         els.incomingAvatar.style.background = avatarColor(displayName);
         els.incomingAvatar.textContent = initials(displayName);
         els.incomingName.textContent = displayName;
@@ -886,7 +911,7 @@ async function doConnect() {
     setStatus('ошибка', false);
     els.connectBtn.disabled = false; els.connectBtn.textContent = 'Войти';
     els.myId.disabled = false; els.myName.disabled = false;
-    alert('Ошибка сети');
+    alert('Ошибка сети: ' + err.message);
   }
 }
 
@@ -937,4 +962,4 @@ els.msgInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMes
 })();
 </script>
 </body>
-</html>
+  </html>
