@@ -417,7 +417,6 @@ input, textarea { outline:none; }
 </div>
 
 <script type="module">
-// ВАЖНО: Используем MQTT вместо WebTorrent/Nostr, так как трекеры блокируются провайдером
 import { joinRoom } from 'https://cdn.jsdelivr.net/npm/trystero@0.25.4/mqtt.min.js';
 
 /* ================= STORAGE ================= */
@@ -445,7 +444,6 @@ let typingTimeout = null;
 let heartbeatInterval = null;
 let uiUpdateInterval = null;
 
-// Call state
 let localStream = null;
 let isCallActive = false;
 let callType = null;
@@ -804,7 +802,6 @@ async function doConnect() {
   save(LS.me, id); save(LS.myName, name);
 
   try {
-    // Инициализация комнаты через MQTT
     room = joinRoom({ 
       appId: 'p2p-messenger-pro-mqtt', 
       rtcConfig: {
@@ -822,24 +819,20 @@ async function doConnect() {
     sendCallAction = room.makeAction('call');
     openStreamAction = room.addStream;
 
-    // Обработка входящего потока (видео/аудио)
     room.onPeerStream((stream, peerId) => {
       if (peerId === activePeer) {
         els.remoteVideo.srcObject = stream;
       }
     });
 
-    // Обработка подключения
     room.onPeerJoin(peerId => {
       onlinePeers.add(peerId);
       upsertContact(peerId, findContact(peerId)?.name || peerId);
       renderContacts();
       if (peerId === activePeer) { setStatus('в сети', true); enableComposer(true); }
-      // Отправляем пинг с именем, чтобы собеседник узнал нас
       sendTypingAction.send({ type: 'ping', senderName: myName }, { target: peerId });
     });
 
-    // Обработка отключения
     room.onPeerLeave(peerId => {
       onlinePeers.delete(peerId);
       renderContacts();
@@ -847,13 +840,11 @@ async function doConnect() {
       if (isCallActive && peerId === activePeer) cleanupCall();
     });
 
-    // Обработка сообщений
     sendMsgAction.onMessage = (data, peerId) => {
       upsertContact(peerId, findContact(peerId)?.name || peerId);
       addMessage(peerId, data.payload, false, data.senderName);
     };
 
-    // Обработка статуса "печатает" и пингов
     sendTypingAction.onMessage = (data, peerId) => {
       if (data.type === 'ping') {
         onlinePeers.add(peerId);
@@ -871,7 +862,6 @@ async function doConnect() {
       }
     };
 
-    // Обработка сигналов звонка
     sendCallAction.onMessage = (data, peerId) => {
       if (data.type === 'call-request') {
         incomingCallData = { peerId, type: data.callType };
@@ -895,7 +885,6 @@ async function doConnect() {
     renderContacts();
     els.logoutBtn.style.display = 'grid';
 
-    // Пинг для поддержания статуса
     heartbeatInterval = setInterval(() => {
       if (!room) return;
       onlinePeers.forEach(peerId => {
@@ -951,4 +940,4 @@ els.msgInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMes
 })();
 </script>
 </body>
-    </html>
+  </html>
