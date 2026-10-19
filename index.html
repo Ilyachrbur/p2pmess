@@ -91,12 +91,15 @@ input, textarea { outline:none; }
 .chat-empty p { color:var(--text-mute); font-size:14px; max-width:320px; line-height:1.6; }
 
 .day-divider { align-self:center; font-size:11px; font-weight:600; color:var(--text-mute); background:var(--panel); padding:4px 12px; border-radius:20px; margin:16px 0 8px; text-transform:uppercase; letter-spacing:.4px; border:1px solid var(--border); }
-.msg-row { display:flex; gap:8px; animation:msgIn .25s cubic-bezier(.2,.8,.2,1); max-width:75%; position:relative; }
+.msg-row { display:flex; gap:8px; animation:msgIn .25s cubic-bezier(.2,.8,.2,1); max-width:75%; position:relative; transition: background 0.3s, box-shadow 0.3s; border-radius: 12px; }
 @media (max-width:900px) { .msg-row { max-width:88%; } }
 .msg-row.me { align-self:flex-end; flex-direction:row-reverse; }
 .msg-row + .msg-row { margin-top:3px; }
 .msg-row.tail { margin-top:12px; }
 @keyframes msgIn { from { opacity:0; transform:translateY(10px) scale(.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+.msg-row.highlight { background: var(--accent-soft); box-shadow: 0 0 0 2px var(--accent); animation: pulseHighlight 2s ease-out; }
+@keyframes pulseHighlight { 0% { box-shadow: 0 0 0 2px var(--accent); } 100% { box-shadow: 0 0 0 0 transparent; } }
+
 .msg-bubble { padding:10px 14px; border-radius:18px; background:var(--panel); border:1px solid var(--border); font-size:14.5px; word-wrap:break-word; position:relative; box-shadow:0 1px 3px rgba(0,0,0,.1); line-height:1.5; }
 .msg-row.me .msg-bubble { background:var(--me); color:var(--me-text); border:none; border-bottom-right-radius:6px; }
 .msg-row.them .msg-bubble { border-bottom-left-radius:6px; }
@@ -104,8 +107,12 @@ input, textarea { outline:none; }
 .msg-row.me .msg-bubble .time { color:rgba(255,255,255,.85); }
 .msg-row.them .msg-bubble .time { color:var(--text-mute); }
 .msg-bubble img { max-width:100%; border-radius:12px; margin-top:6px; display:block; cursor:pointer; }
-.msg-bubble .reply-quote { background:rgba(0,0,0,.15); border-left:3px solid var(--accent); padding:6px 10px; border-radius:6px; margin-bottom:8px; font-size:12px; opacity:.8; }
+
+/* Цитата ответа */
+.msg-bubble .reply-quote { background:rgba(0,0,0,.15); border-left:3px solid var(--accent); padding:6px 10px; border-radius:6px; margin-bottom:8px; font-size:12px; opacity:.8; cursor:pointer; transition: opacity 0.2s; }
+.msg-bubble .reply-quote:hover { opacity: 1; background: rgba(0,0,0,.25); }
 .msg-row.me .reply-quote { background:rgba(255,255,255,.15); border-color:#fff; }
+.msg-row.me .reply-quote:hover { background: rgba(255,255,255,.25); }
 
 /* File Message */
 .file-msg { display:flex; align-items:center; gap:12px; background:rgba(0,0,0,.15); padding:8px 12px; border-radius:10px; margin-top:6px; text-decoration:none; color:inherit; }
@@ -498,6 +505,18 @@ function openChat(peerId) {
   closeSidebar();
 }
 
+// Функция для плавной прокрутки к сообщению и подсветки
+function scrollToMessage(msgId) {
+  const targetRow = document.getElementById(`msg-${msgId}`);
+  if (targetRow) {
+    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    targetRow.classList.add('highlight');
+    setTimeout(() => {
+      targetRow.classList.remove('highlight');
+    }, 2000); // Подсветка исчезнет через 2 секунды
+  }
+}
+
 function renderChat() {
   els.chat.innerHTML = '';
   if (!activePeer) {
@@ -523,11 +542,15 @@ function renderChat() {
     }
     const row = document.createElement('div');
     row.className = 'msg-row ' + (m.mine ? 'me' : 'them');
+    row.id = `msg-${m.ts}`; // Присваиваем уникальный ID на основе таймстампа
     if (lastMine !== m.mine) row.classList.add('tail');
     
     let content = '';
+    // Если есть ответ, рендерим цитату с data-атрибутом для клика
     if (m.reply) {
-      content += `<div class="reply-quote">${esc(m.reply.name)}: ${esc(m.reply.text.slice(0, 30))}...</div>`;
+      content += `<div class="reply-quote" data-reply-ts="${m.reply.ts}">
+        <b>${esc(m.reply.name)}:</b> ${esc(m.reply.text.slice(0, 30))}...
+      </div>`;
     }
     if (m.file) {
       if (m.file.isImage) {
@@ -554,11 +577,20 @@ function renderChat() {
     lastMine = m.mine;
   });
   els.chat.scrollTop = els.chat.scrollHeight;
+
+  // Добавляем обработчик клика на все цитаты в чате
+  document.querySelectorAll('.reply-quote').forEach(quote => {
+    quote.addEventListener('click', (e) => {
+      const ts = Number(e.currentTarget.dataset.replyTs);
+      if (ts) scrollToMessage(ts);
+    });
+  });
 }
 
 function addMessage(peerId, msg, mine) {
   if (!history[peerId]) history[peerId] = [];
-  history[peerId].push({ ...msg, mine, ts: now() });
+  const newMsg = { ...msg, mine, ts: now() };
+  history[peerId].push(newMsg);
   if (history[peerId].length > 1000) history[peerId] = history[peerId].slice(-1000);
   save(LS.history, history);
   
@@ -625,7 +657,11 @@ els.fileInput.addEventListener('change', (e) => {
     const isImage = file.type.startsWith('image/');
     
     const msg = { file: { url: dataUrl, name: file.name, size: file.size, isImage } };
-    if (replyingTo) { msg.reply = { name: 'Вы', text: replyingTo.text || 'Файл' }; replyingTo = null; els.replyBar.classList.remove('show'); }
+    if (replyingTo) { 
+      msg.reply = { name: 'Вы', text: replyingTo.text || 'Файл', ts: replyingTo.ts }; 
+      replyingTo = null; 
+      els.replyBar.classList.remove('show'); 
+    }
     
     connect.Send({ type: 'msg', payload: msg }, { connectId: activePeer });
     addMessage(activePeer, msg, true);
@@ -658,7 +694,6 @@ async function doConnect() {
       }
     });
 
-    // Событие: кто-то подключился
     connect.onConnect((attr) => {
       onlinePeers.add(attr.connectId);
       upsertContact(attr.connectId, findContact(attr.connectId)?.name || attr.connectId);
@@ -666,17 +701,15 @@ async function doConnect() {
       if (attr.connectId === activePeer) { setStatus('в сети', true); enableComposer(true); }
     });
 
-    // Событие: кто-то отключился
     connect.onDisconnect((attr) => {
       onlinePeers.delete(attr.connectId);
       renderContacts();
       if (attr.connectId === activePeer) { setStatus('не в сети', false); enableComposer(false); }
     });
 
-    // Событие: получено сообщение
     connect.onReceive((data, attr) => {
       if (data.type === 'ping') {
-        onlinePeers.add(attr.connectId); // Если пришел пинг, значит он онлайн
+        onlinePeers.add(attr.connectId);
         return;
       }
       if (data.type === 'typing') {
@@ -699,8 +732,6 @@ async function doConnect() {
     els.connectBtn.textContent = 'Вошли';
     renderContacts();
 
-    // ЗАПУСК "FAST SYNC" - 5 раз в секунду (каждые 200мс)
-    // 1. Отправляем сигнал "Я тут" всем, кого знаем (чтобы они обновили свой список)
     heartbeatInterval = setInterval(() => {
       if (!connect) return;
       onlinePeers.forEach(peerId => {
@@ -708,8 +739,6 @@ async function doConnect() {
       });
     }, 200);
 
-    // 2. Перерисовываем локальный список контактов 5 раз в секунду
-    // (чтобы моментально показать новых людей, если они появятся)
     uiUpdateInterval = setInterval(() => {
       if (contacts.length > 0) renderContacts();
     }, 200);
@@ -735,7 +764,7 @@ function sendMessage() {
 
   const msg = { type: 'msg', payload: { text } };
   if (replyingTo) {
-    msg.payload.reply = { name: 'Вы', text: replyingTo.text || 'Файл' };
+    msg.payload.reply = { name: 'Вы', text: replyingTo.text || 'Файл', ts: replyingTo.ts };
     replyingTo = null;
     els.replyBar.classList.remove('show');
   }
@@ -785,4 +814,4 @@ els.msgInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMes
 })();
 </script>
 </body>
-          </html>
+  </html>
