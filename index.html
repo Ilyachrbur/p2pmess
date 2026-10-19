@@ -74,7 +74,6 @@ input, textarea { outline:none; }
 @media (max-width:900px) { .topbar { padding:0 16px; } }
 .topbar__info { flex:1; min-width:0; }
 .topbar__name { font-weight:600; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:8px; }
-.topbar__id { font-size:11px; color:var(--text-mute); font-weight:500; background:var(--panel-2); padding:2px 6px; border-radius:4px; border:1px solid var(--border); }
 .topbar__status { font-size:12px; color:var(--text-mute); display:flex; align-items:center; gap:6px; margin-top:2px; }
 .topbar__status.online { color:var(--online); }
 .topbar__status.typing { color:var(--accent); }
@@ -225,6 +224,7 @@ input, textarea { outline:none; }
 
       <div class="login-row" id="loginBox">
         <input id="myId" placeholder="Ваш ID (alice-123)" autocomplete="off">
+        <input id="myName" placeholder="Ваше Имя" autocomplete="off">
         <button class="btn" id="connectBtn">Войти</button>
       </div>
 
@@ -263,7 +263,7 @@ input, textarea { outline:none; }
               <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
             </div>
             <h2>Добро пожаловать</h2>
-            <p>Введите свой ID слева, чтобы начать. Ваши сообщения защищены и передаются напрямую.</p>
+            <p>Введите свой ID и Имя слева, чтобы начать. Ваши сообщения защищены и передаются напрямую.</p>
           </div>
         </div>
       </div>
@@ -333,7 +333,7 @@ input, textarea { outline:none; }
 import webconnect from 'https://cdn.jsdelivr.net/npm/webconnect/dist/esm/webconnect.js';
 
 /* ================= STORAGE ================= */
-const LS = { me:'wc_me', contacts:'wc_contacts', history:'wc_history', theme:'wc_theme' };
+const LS = { me:'wc_me', myName: 'wc_myName', contacts:'wc_contacts', history:'wc_history', theme:'wc_theme' };
 const load = (k, f) => { try { return JSON.parse(localStorage.getItem(k)) ?? f; } catch { return f; } };
 const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
@@ -342,6 +342,7 @@ let connect = null;
 let activePeer = null;
 let filter = '';
 let myId = '';
+let myName = '';
 let contacts = load(LS.contacts, []);
 let history = load(LS.history, {});
 let onlinePeers = new Set();
@@ -354,7 +355,7 @@ let uiUpdateInterval = null;
 /* ================= DOM ================= */
 const $ = id => document.getElementById(id);
 const els = {
-  myId:$('myId'), connectBtn:$('connectBtn'), searchInput:$('searchInput'),
+  myId:$('myId'), myName:$('myName'), connectBtn:$('connectBtn'), searchInput:$('searchInput'),
   addContactBtn:$('addContactBtn'), contacts:$('contacts'),
   peerName:$('peerName'), status:$('status'), statusText:$('statusText'),
   chat:$('chat'), chatEmpty:$('chatEmpty'), chatContainer:document.querySelector('.chat-container'),
@@ -423,10 +424,13 @@ els.logoutBtn.addEventListener('click', () => {
   onlinePeers.clear();
   
   myId = '';
+  myName = '';
   activePeer = null;
   save(LS.me, '');
+  save(LS.myName, '');
   
   els.myId.disabled = false;
+  els.myName.disabled = false;
   els.connectBtn.disabled = false;
   els.connectBtn.textContent = 'Войти';
   els.loginBox.style.display = 'flex';
@@ -469,6 +473,22 @@ els.modalSubmit.addEventListener('click', () => {
 
 /* ================= CONTACTS ================= */
 const findContact = id => contacts.find(c => c.id === id);
+
+// Обновление имени контакта (если собеседник прислал своё имя)
+function updateContactName(id, name) {
+  let c = findContact(id);
+  if (!c) { upsertContact(id, name, false); return; }
+  if (c.name !== name) {
+    c.name = name;
+    save(LS.contacts, contacts);
+    renderContacts();
+    if (activePeer === id) {
+      els.peerName.textContent = name;
+      els.topAvatar.style.background = avatarColor(name);
+      els.topAvatar.textContent = initials(name);
+    }
+  }
+}
 
 function upsertContact(id, name, friend) {
   let c = findContact(id);
@@ -513,14 +533,18 @@ function renderContacts() {
     const isOnline = onlinePeers.has(c.id);
     const unread = unreadCounts[c.id] || 0;
     const hasUnread = unread > 0 && c.id !== activePeer;
+    
+    // Если имя совпадает с ID, значит реальное имя неизвестно — показываем только ID
+    const displayName = c.name !== c.id ? c.name : c.id;
+
     return `
     <div class="contact ${c.id === activePeer ? 'active' : ''}" data-id="${esc(c.id)}">
       <div style="position:relative">
-        ${avatarHtml(c.name, 44, 14)}
+        ${avatarHtml(displayName, 44, 14)}
         <div class="avatar__dot ${isOnline ? 'on' : ''}"></div>
       </div>
       <div class="contact__body">
-        <div class="contact__name">${c.friend ? '<span class="star">★</span>' : ''}${esc(c.name)}</div>
+        <div class="contact__name">${c.friend ? '<span class="star">★</span>' : ''}${esc(displayName)}</div>
         <div class="contact__preview ${hasUnread ? 'unread' : ''}">${esc(lastMessagePreview(c.id))}</div>
       </div>
       ${hasUnread ? `<div class="unread-badge">${unread}</div>` : ''}
@@ -550,12 +574,14 @@ function closeChat() {
 function openChat(peerId) {
   activePeer = peerId;
   const c = findContact(peerId);
+  // Если мы знаем ID, но не знаем имени, временно ставим ID
   upsertContact(peerId, c?.name || peerId, c?.friend);
-  const name = c?.name || peerId;
+  const displayName = c?.name && c.name !== peerId ? c.name : peerId;
 
-  els.peerName.innerHTML = `${esc(name)} <span class="topbar__id">${esc(peerId)}</span>`;
-  els.topAvatar.style.background = avatarColor(name);
-  els.topAvatar.textContent = initials(name);
+  // В шапке только имя (без технического ID, как просили)
+  els.peerName.textContent = displayName;
+  els.topAvatar.style.background = avatarColor(displayName);
+  els.topAvatar.textContent = initials(displayName);
 
   const isOnline = onlinePeers.has(peerId);
   setStatus(isOnline ? 'в сети' : 'не в сети', isOnline);
@@ -636,7 +662,6 @@ function renderChat() {
     lastMine = m.mine;
   });
   
-  // Прокрутка вниз после рендера
   requestAnimationFrame(() => {
     els.chat.scrollTop = els.chat.scrollHeight;
     toggleScrollDownBtn();
@@ -650,7 +675,6 @@ function renderChat() {
   });
 }
 
-/* ================= SCROLL DOWN LOGIC ================= */
 function toggleScrollDownBtn() {
   const diff = els.chat.scrollHeight - els.chat.scrollTop - els.chat.clientHeight;
   els.scrollDownBtn.classList.toggle('show', diff > 300);
@@ -660,12 +684,17 @@ els.scrollDownBtn.addEventListener('click', () => {
   els.chat.scrollTo({ top: els.chat.scrollHeight, behavior: 'smooth' });
 });
 
-function addMessage(peerId, msg, mine) {
+function addMessage(peerId, msg, mine, senderName) {
   if (!history[peerId]) history[peerId] = [];
   const newMsg = { ...msg, mine, ts: now() };
   history[peerId].push(newMsg);
   if (history[peerId].length > 1000) history[peerId] = history[peerId].slice(-1000);
   save(LS.history, history);
+  
+  // Если собеседник передал своё имя, обновляем контакт
+  if (!mine && senderName) {
+    updateContactName(peerId, senderName);
+  }
   
   if (peerId === activePeer) {
     renderChat();
@@ -731,12 +760,12 @@ els.fileInput.addEventListener('change', (e) => {
     
     const msg = { file: { url: dataUrl, name: file.name, size: file.size, isImage } };
     if (replyingTo) { 
-      msg.reply = { name: 'Вы', text: replyingTo.text || 'Файл', ts: replyingTo.ts }; 
+      msg.reply = { name: myName, text: replyingTo.text || 'Файл', ts: replyingTo.ts }; 
       replyingTo = null; 
       els.replyBar.classList.remove('show'); 
     }
     
-    connect.Send({ type: 'msg', payload: msg }, { connectId: activePeer });
+    connect.Send({ type: 'msg', payload: msg, senderName: myName }, { connectId: activePeer });
     addMessage(activePeer, msg, true);
   };
   reader.readAsDataURL(file);
@@ -746,13 +775,18 @@ els.fileInput.addEventListener('change', (e) => {
 /* ================= WEBCONNECT & FAST SYNC ================= */
 async function doConnect() {
   const id = els.myId.value.trim();
+  const name = els.myName.value.trim();
   if (!id || !/^[a-zA-Z0-9_-]+$/.test(id) || id.length < 3) { alert('ID: 3+ символа'); return; }
+  if (!name) { alert('Введите ваше имя'); return; }
 
   els.connectBtn.disabled = true;
   els.connectBtn.textContent = '...';
   els.myId.disabled = true;
+  els.myName.disabled = true;
   myId = id;
+  myName = name;
   save(LS.me, id);
+  save(LS.myName, name);
 
   try {
     connect = webconnect({
@@ -783,6 +817,7 @@ async function doConnect() {
     connect.onReceive((data, attr) => {
       if (data.type === 'ping') {
         onlinePeers.add(attr.connectId);
+        if (data.senderName) updateContactName(attr.connectId, data.senderName);
         return;
       }
       if (data.type === 'typing') {
@@ -797,7 +832,7 @@ async function doConnect() {
       }
       if (data.type === 'msg') {
         upsertContact(attr.connectId, findContact(attr.connectId)?.name || attr.connectId);
-        addMessage(attr.connectId, data.payload, false);
+        addMessage(attr.connectId, data.payload, false, data.senderName);
       }
     });
 
@@ -806,10 +841,11 @@ async function doConnect() {
     renderContacts();
     els.logoutBtn.style.display = 'grid';
 
+    // Отправляем пинг с нашим именем
     heartbeatInterval = setInterval(() => {
       if (!connect) return;
       onlinePeers.forEach(peerId => {
-        connect.Send({ type: 'ping' }, { connectId: peerId });
+        connect.Send({ type: 'ping', senderName: myName }, { connectId: peerId });
       });
     }, 200);
 
@@ -822,13 +858,14 @@ async function doConnect() {
     els.connectBtn.disabled = false;
     els.connectBtn.textContent = 'Войти';
     els.myId.disabled = false;
+    els.myName.disabled = false;
     alert('Ошибка сети');
   }
 }
 
 function sendTyping() {
   if (!activePeer || !connect) return;
-  connect.Send({ type: 'typing' }, { connectId: activePeer });
+  connect.Send({ type: 'typing', senderName: myName }, { connectId: activePeer });
 }
 
 function sendMessage() {
@@ -836,9 +873,9 @@ function sendMessage() {
   if (!text && !replyingTo) return;
   if (!activePeer || !connect) return;
 
-  const msg = { type: 'msg', payload: { text } };
+  const msg = { type: 'msg', payload: { text }, senderName: myName };
   if (replyingTo) {
-    msg.payload.reply = { name: 'Вы', text: replyingTo.text || 'Файл', ts: replyingTo.ts };
+    msg.payload.reply = { name: myName, text: replyingTo.text || 'Файл', ts: replyingTo.ts };
     replyingTo = null;
     els.replyBar.classList.remove('show');
   }
@@ -881,9 +918,11 @@ els.msgInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMes
 (function init() {
   applyTheme(load(LS.theme, 'dark'));
   const savedMe = load(LS.me, '');
+  const savedName = load(LS.myName, '');
   if (savedMe) { 
     els.myId.value = savedMe; 
-    doConnect(); 
+    els.myName.value = savedName;
+    if (savedName) doConnect(); 
   } else {
     els.logoutBtn.style.display = 'none';
   }
