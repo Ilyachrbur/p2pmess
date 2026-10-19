@@ -349,24 +349,23 @@ input, textarea { outline:none; }
 </div>
 
 <script type="module">
-// Динамический импорт, чтобы интерфейс работал, даже если CDN недоступен
+// Динамический импорт
 let joinRoom = null;
 try {
   const module = await import('https://cdn.jsdelivr.net/npm/@trystero-p2p/mqtt@0.25.4/+esm');
   joinRoom = module.joinRoom;
 } catch (e) {
-  console.warn("Не удалось загрузить MQTT модуль, пробуем резервный CDN...");
+  console.warn("Ошибка CDN, пробуем esm.sh...", e);
   try {
     const module = await import('https://esm.sh/@trystero-p2p/mqtt@0.25.4');
     joinRoom = module.joinRoom;
   } catch (e2) {
-    console.error("Ошибка загрузки библиотеки:", e2);
-    alert("Не удалось загрузить сетевую библиотеку. Проверьте интернет.");
+    console.error("Не удалось загрузить библиотеку MQTT", e2);
   }
 }
 
 /* ================= STORAGE ================= */
-const LS = { me:'wc_me', myName: 'wc_myName', contacts:'wc_contacts', history:'wc_history', theme:'wc_theme' };
+const LS = { me:'wc_me', myName: 'wc_myName', contacts:'wc_contacts', history:'wc_history', theme:'wc_theme', mappings:'wc_mappings' };
 const load = (k, f) => { try { return JSON.parse(localStorage.getItem(k)) ?? f; } catch { return f; } };
 const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
@@ -375,20 +374,19 @@ let room = null;
 let sendMsgAction = null;
 let sendTypingAction = null;
 let sendCallAction = null;
-let openStreamAction = null;
 
-let activePeer = null;
+let activePeer = null; // ID контакта
 let filter = '';
 let myId = '';
 let myName = '';
 let contacts = load(LS.contacts, []);
 let history = load(LS.history, {});
 let onlinePeers = new Set();
+let peerMappings = load(LS.mappings, {});
 let unreadCounts = {};
 let replyingTo = null;
 let typingTimeout = null;
 let heartbeatInterval = null;
-let uiUpdateInterval = null;
 
 let localStream = null;
 let isCallActive = false;
@@ -463,7 +461,6 @@ els.overlay.addEventListener('click', closeSidebar);
 els.logoutBtn.addEventListener('click', () => {
   if (!confirm('Вы уверены, что хотите выйти?')) return;
   clearInterval(heartbeatInterval);
-  clearInterval(uiUpdateInterval);
   clearTimeout(typingTimeout);
   if (room) { try { room.leave(); } catch(e) {} }
   room = null;
@@ -489,44 +486,54 @@ els.modalSubmit.addEventListener('click', () => {
   if (!id || !/^[a-zA-Z0-9_-]+$/.test(id) || id.length < 3) { els.modalError.textContent = 'Некорректный ID'; return; }
   if (id === myId) { els.modalError.textContent = 'Это ваш ID'; return; }
   const existing = findContact(id);
-  if (existing) { closeModal(); openChat(id); return; }
+  if (existing) { closeModal(); openChat(existing.id); return; }
   upsertContact(id, name || id, false); closeModal(); openChat(id);
 });
 
 /* ================= CONTACTS ================= */
 const findContact = id => contacts.find(c => c.id === id);
+
 function updateContactName(id, name) {
   let c = findContact(id);
-  if (!c) { upsertContact(id, name, false); return; }
-  if (c.name !== name) {
-    c.name = name; save(LS.contacts, contacts); renderContacts();
-    if (activePeer === id) {
-      els.peerName.textContent = name;
-      els.topAvatar.style.background = avatarColor(name);
-      els.topAvatar.textContent = initials(name);
-    }
+  if (!c) { 
+    upsertContact(id, name, false); 
+  } else if (c.name !== name) {
+    c.name = name; 
+    save(LS.contacts, contacts); 
   }
 }
+
 function upsertContact(id, name, friend) {
   let c = findContact(id);
   if (c) { if (name && name !== id) c.name = name; if (friend) c.friend = true; }
   else { contacts.push({ id, name: name || id, friend: !!friend }); }
-  save(LS.contacts, contacts); renderContacts();
+  save(LS.contacts, contacts); 
 }
+
+function updateMapping(humanId, hash) {
+  if (peerMappings[humanId] !== hash) {
+    peerMappings[humanId] = hash;
+    save(LS.mappings, peerMappings);
+  }
+}
+
 function lastMessagePreview(id) {
   const list = history[id]; if (!list || !list.length) return 'Нет сообщений';
   const last = list[list.length - 1];
   let preview = last.text || (last.file ? '📎 Файл' : '');
   return (last.mine ? 'Вы: ' : '') + preview.slice(0, 40);
 }
+
 function renderContacts() {
   const q = filter.trim().toLowerCase();
   const list = contacts.filter(c => !q || c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q))
     .sort((a, b) => (b.friend - a.friend) || (a.name.localeCompare(b.name)));
   let html = '';
   if (!list.length) { html += `<div class="empty" style="text-align:center;color:var(--text-mute);padding:40px 20px;">Пока нет контактов</div>`; els.contacts.innerHTML = html; return; }
+  
   const renderItem = c => {
-    const isOnline = onlinePeers.has(c.id);
+    const hash = peerMappings[c.id];
+    const isOnline = hash && onlinePeers.has(hash);
     const unread = unreadCounts[c.id] || 0;
     const hasUnread = unread > 0 && c.id !== activePeer;
     const displayName = c.name !== c.id ? c.name : c.id;
@@ -538,24 +545,28 @@ function renderContacts() {
   };
   html += list.map(renderItem).join(''); els.contacts.innerHTML = html;
 }
+
 els.contacts.addEventListener('click', (e) => { const item = e.target.closest('.contact'); if (item) openChat(item.dataset.id); });
 
 /* ================= CHAT ================= */
 function closeChat() {
-  activePeer = null; els.peerName.innerHTML = 'Выберите собеседника';
+  activePeer = null;
+  els.peerName.innerHTML = 'Выберите собеседника';
   els.topAvatar.style.background = '#334155'; els.topAvatar.textContent = '?';
   setStatus('не подключено', false); enableComposer(false); renderChat();
   els.audioCallBtn.style.display = 'none'; els.videoCallBtn.style.display = 'none';
 }
+
 function openChat(peerId) {
   activePeer = peerId;
   const c = findContact(peerId);
-  upsertContact(peerId, c?.name || peerId, c?.friend);
   const displayName = c?.name && c.name !== peerId ? c.name : peerId;
   els.peerName.textContent = displayName;
   els.topAvatar.style.background = avatarColor(displayName);
   els.topAvatar.textContent = initials(displayName);
-  const isOnline = onlinePeers.has(peerId);
+  
+  const hash = peerMappings[peerId];
+  const isOnline = hash && onlinePeers.has(hash);
   setStatus(isOnline ? 'в сети' : 'не в сети', isOnline);
   enableComposer(isOnline);
   unreadCounts[peerId] = 0;
@@ -564,10 +575,12 @@ function openChat(peerId) {
   els.videoCallBtn.style.display = 'grid';
   if (window.innerWidth <= 900) closeSidebar();
 }
+
 function scrollToMessage(msgId) {
   const targetRow = document.getElementById(`msg-${msgId}`);
   if (targetRow) { targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' }); targetRow.classList.add('highlight'); setTimeout(() => targetRow.classList.remove('highlight'), 2000); }
 }
+
 function renderChat() {
   els.chat.innerHTML = '';
   if (!activePeer) { els.chat.appendChild(els.chatEmpty); els.chatEmpty.style.display = ''; return; }
@@ -594,17 +607,21 @@ function renderChat() {
 function toggleScrollDownBtn() { const diff = els.chat.scrollHeight - els.chat.scrollTop - els.chat.clientHeight; els.scrollDownBtn.classList.toggle('show', diff > 300); }
 els.chat.addEventListener('scroll', toggleScrollDownBtn);
 els.scrollDownBtn.addEventListener('click', () => { els.chat.scrollTo({ top: els.chat.scrollHeight, behavior: 'smooth' }); });
+
 function addMessage(peerId, msg, mine, senderName) {
   if (!history[peerId]) history[peerId] = [];
   const newMsg = { ...msg, mine, ts: now() };
   history[peerId].push(newMsg);
   if (history[peerId].length > 1000) history[peerId] = history[peerId].slice(-1000);
   save(LS.history, history);
+  
   if (!mine && senderName) updateContactName(peerId, senderName);
+  
   if (peerId === activePeer) { renderChat(); }
   else if (!mine) { unreadCounts[peerId] = (unreadCounts[peerId] || 0) + 1; playNotifySound(); startTitleNotification(); }
   renderContacts();
 }
+
 function enableComposer(on) { els.msgInput.disabled = !on; els.sendBtn.disabled = !on; els.attachBtn.disabled = !on; if (on) els.msgInput.focus(); }
 function setStatus(text, online, typing) { els.statusText.textContent = text; els.status.classList.toggle('online', !!online); els.status.classList.toggle('typing', !!typing); }
 
@@ -619,12 +636,16 @@ els.emojiPicker.addEventListener('click', (e) => { if (e.target.tagName === 'SPA
 els.attachBtn.addEventListener('click', () => els.fileInput.click());
 els.fileInput.addEventListener('change', (e) => {
   const file = e.target.files[0]; if (!file) return;
+  const hash = peerMappings[activePeer];
+  if (!hash) { alert('Собеседник не в сети'); return; }
+  
   const reader = new FileReader();
   reader.onload = (ev) => {
     const dataUrl = ev.target.result; const isImage = file.type.startsWith('image/');
     const msg = { file: { url: dataUrl, name: file.name, size: file.size, isImage } };
     if (replyingTo) { msg.reply = { name: myName, text: replyingTo.text || 'Файл', ts: replyingTo.ts }; replyingTo = null; els.replyBar.classList.remove('show'); }
-    sendMsgAction.send({ type: 'msg', payload: msg, senderName: myName }, { target: activePeer });
+    
+    sendMsgAction.send({ type: 'msg', payload: msg, senderName: myName, senderId: myId }, { target: hash });
     addMessage(activePeer, msg, true);
   };
   reader.readAsDataURL(file); els.fileInput.value = '';
@@ -632,7 +653,8 @@ els.fileInput.addEventListener('change', (e) => {
 
 /* ================= CALL FUNCTIONS ================= */
 async function startCall(type) {
-  if (!activePeer || !room) return;
+  const hash = peerMappings[activePeer];
+  if (!hash || !room) { alert("Собеседник не в сети"); return; }
   if (isCallActive) return;
   callType = type;
   isCallActive = true;
@@ -647,7 +669,8 @@ async function startCall(type) {
     els.localVideo.muted = true;
     els.videoOverlay.classList.add('show');
     
-    sendCallAction.send({ type: 'call-request', callType: type, senderName: myName }, { target: activePeer });
+    sendCallAction.send({ type: 'call-request', callType: type, senderName: myName }, { target: hash });
+    room.addStream(localStream, hash);
     
   } catch (err) {
     console.error('Call error:', err);
@@ -658,7 +681,7 @@ async function startCall(type) {
 
 async function acceptCall() {
   if (!incomingCallData) return;
-  const { peerId, type } = incomingCallData;
+  const { hash, type } = incomingCallData;
   callType = type;
   isCallActive = true;
   incomingCallData = null;
@@ -674,8 +697,8 @@ async function acceptCall() {
     els.localVideo.muted = true;
     els.videoOverlay.classList.add('show');
     
-    sendCallAction.send({ type: 'call-accept', callType: type }, { target: peerId });
-    openStreamAction(localStream, { target: peerId });
+    sendCallAction.send({ type: 'call-accept', callType: type }, { target: hash });
+    room.addStream(localStream, hash);
     
   } catch (err) {
     console.error('Accept call error:', err);
@@ -686,7 +709,7 @@ async function acceptCall() {
 
 function declineCall() {
   if (incomingCallData) {
-    sendCallAction.send({ type: 'call-decline' }, { target: incomingCallData.peerId });
+    sendCallAction.send({ type: 'call-decline' }, { target: incomingCallData.hash });
     incomingCallData = null;
   }
   els.incomingCall.classList.remove('show');
@@ -694,8 +717,9 @@ function declineCall() {
 }
 
 function endCall() {
-  if (activePeer && room) {
-    sendCallAction.send({ type: 'call-end' }, { target: activePeer });
+  const hash = peerMappings[activePeer];
+  if (hash && room) {
+    sendCallAction.send({ type: 'call-end' }, { target: hash });
   }
   cleanupCall();
 }
@@ -738,11 +762,14 @@ els.toggleCamBtn.addEventListener('click', () => {
 
 /* ================= TRYSTERO (MQTT) ================= */
 async function doConnect() {
-  if (!joinRoom) { alert('Сетевая библиотека еще загружается или недоступна. Подождите.'); return; }
+  if (!joinRoom) { alert('Сетевая библиотека недоступна. Проверьте интернет.'); return; }
   const id = els.myId.value.trim();
   const name = els.myName.value.trim();
-  if (!id || !/^[a-zA-Z0-9_-]+$/.test(id) || id.length < 3) { alert('ID: 3+ символа'); return; }
+  if (!id || !/^[a-zA-Z0-9_-]+$/.test(id) || id.length < 3) { alert('ID: 3+ символа (буквы, цифры, _, -)'); return; }
   if (!name) { alert('Введите ваше имя'); return; }
+  
+  if (room) return;
+
   els.connectBtn.disabled = true; els.connectBtn.textContent = '...';
   els.myId.disabled = true; els.myName.disabled = true;
   myId = id; myName = name;
@@ -750,7 +777,7 @@ async function doConnect() {
 
   try {
     room = joinRoom({ 
-      appId: 'p2p-messenger-pro-mqtt', 
+      appId: 'p2p-messenger-pro-mqtt-global', 
       rtcConfig: {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
@@ -759,61 +786,76 @@ async function doConnect() {
           { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
         ]
       }
-    }, 'room-' + id);
+    }, 'global-chat-room');
 
     sendMsgAction = room.makeAction('msg');
     sendTypingAction = room.makeAction('typing');
     sendCallAction = room.makeAction('call');
-    openStreamAction = room.addStream;
-
-    room.onPeerStream((stream, peerId) => {
-      if (peerId === activePeer) {
+    
+    room.onPeerStream((stream, peerHash) => {
+      const contactId = Object.keys(peerMappings).find(k => peerMappings[k] === peerHash);
+      if (contactId === activePeer) {
         els.remoteVideo.srcObject = stream;
       }
     });
 
-    room.onPeerJoin(peerId => {
-      onlinePeers.add(peerId);
-      upsertContact(peerId, findContact(peerId)?.name || peerId);
-      renderContacts();
-      if (peerId === activePeer) { setStatus('в сети', true); enableComposer(true); }
-      sendTypingAction.send({ type: 'ping', senderName: myName }, { target: peerId });
+    room.onPeerJoin(peerHash => {
+      onlinePeers.add(peerHash);
+      // Не вызываем renderContacts здесь, ждем пинга
+      sendTypingAction.send({ type: 'ping', senderName: myName, senderId: myId }, { target: peerHash });
     });
 
-    room.onPeerLeave(peerId => {
-      onlinePeers.delete(peerId);
+    room.onPeerLeave(peerHash => {
+      onlinePeers.delete(peerHash);
+      // Очищаем маппинг
+      const contactId = Object.keys(peerMappings).find(k => peerMappings[k] === peerHash);
+      if (contactId) {
+        delete peerMappings[contactId];
+        save(LS.mappings, peerMappings);
+      }
       renderContacts();
-      if (peerId === activePeer) { setStatus('не в сети', false); enableComposer(false); }
-      if (isCallActive && peerId === activePeer) cleanupCall();
+      
+      if (contactId === activePeer) { setStatus('не в сети', false); enableComposer(false); }
+      if (isCallActive && contactId === activePeer) cleanupCall();
     });
 
-    sendMsgAction.onMessage = (data, peerId) => {
-      upsertContact(peerId, findContact(peerId)?.name || peerId);
-      addMessage(peerId, data.payload, false, data.senderName);
+    sendMsgAction.onMessage = (data, peerHash) => {
+      if (data.senderId) {
+        updateMapping(data.senderId, peerHash);
+        updateContactName(data.senderId, data.senderName);
+        addMessage(data.senderId, data.payload, false, data.senderName);
+      }
     };
 
-    sendTypingAction.onMessage = (data, peerId) => {
+    sendTypingAction.onMessage = (data, peerHash) => {
       if (data.type === 'ping') {
-        onlinePeers.add(peerId);
-        if (data.senderName) updateContactName(peerId, data.senderName);
+        onlinePeers.add(peerHash);
+        if (data.senderId) {
+          updateMapping(data.senderId, peerHash);
+          updateContactName(data.senderId, data.senderName);
+          renderContacts(); // Обновляем UI после пинга
+        }
         return;
       }
-      if (data.type === 'typing') {
-        if (peerId === activePeer) {
+      if (data.type === 'typing' && data.senderId) {
+        if (data.senderId === activePeer) {
           setStatus('печатает...', true, true);
           clearTimeout(typingTimeout);
           typingTimeout = setTimeout(() => {
-            if (onlinePeers.has(peerId)) setStatus('в сети', true);
+            // Повторная проверка, чтобы не перебить статус другого чата
+            if (activePeer === data.senderId) {
+              const hash = peerMappings[data.senderId];
+              if (onlinePeers.has(hash)) setStatus('в сети', true);
+            }
           }, 2000);
         }
       }
     };
 
-    sendCallAction.onMessage = (data, peerId) => {
+    sendCallAction.onMessage = (data, peerHash) => {
       if (data.type === 'call-request') {
-        incomingCallData = { peerId, type: data.callType };
-        const c = findContact(peerId);
-        const displayName = c?.name || data.senderName || peerId;
+        incomingCallData = { hash: peerHash, type: data.callType };
+        const displayName = data.senderName || peerHash;
         els.incomingAvatar.style.background = avatarColor(displayName);
         els.incomingAvatar.textContent = initials(displayName);
         els.incomingName.textContent = displayName;
@@ -821,7 +863,7 @@ async function doConnect() {
         els.incomingCall.classList.add('show');
       }
       if (data.type === 'call-accept' && isCallActive) {
-        openStreamAction(localStream, { target: peerId });
+        room.addStream(localStream, peerHash);
       }
       if (data.type === 'call-decline') { cleanupCall(); alert('Собеседник отклонил звонок'); }
       if (data.type === 'call-end') { cleanupCall(); }
@@ -834,12 +876,10 @@ async function doConnect() {
 
     heartbeatInterval = setInterval(() => {
       if (!room) return;
-      onlinePeers.forEach(peerId => {
-        sendTypingAction.send({ type: 'ping', senderName: myName }, { target: peerId });
+      onlinePeers.forEach(hash => {
+        sendTypingAction.send({ type: 'ping', senderName: myName, senderId: myId }, { target: hash });
       });
-    }, 2000);
-
-    uiUpdateInterval = setInterval(() => { if (contacts.length > 0) renderContacts(); }, 200);
+    }, 10000);
 
   } catch (err) {
     console.error('Connection error:', err);
@@ -850,12 +890,22 @@ async function doConnect() {
   }
 }
 
-function sendTyping() { if (!activePeer || !room) return; sendTypingAction.send({ type: 'typing' }, { target: activePeer }); }
+function sendTyping() { 
+  const hash = peerMappings[activePeer];
+  if (!hash || !room) return; 
+  sendTypingAction.send({ type: 'typing', senderId: myId }, { target: hash }); 
+}
+
 function sendMessage() {
-  const text = els.msgInput.value.trim(); if (!text && !replyingTo) return; if (!activePeer || !room) return;
-  const msg = { type: 'msg', payload: { text }, senderName: myName };
+  const text = els.msgInput.value.trim(); 
+  if (!text && !replyingTo) return; 
+  
+  const hash = peerMappings[activePeer];
+  if (!hash || !room) return;
+  
+  const msg = { type: 'msg', payload: { text }, senderName: myName, senderId: myId };
   if (replyingTo) { msg.payload.reply = { name: myName, text: replyingTo.text || 'Файл', ts: replyingTo.ts }; replyingTo = null; els.replyBar.classList.remove('show'); }
-  sendMsgAction.send(msg, { target: activePeer });
+  sendMsgAction.send(msg, { target: hash });
   addMessage(activePeer, msg.payload, true);
   els.msgInput.value = ''; els.msgInput.focus();
 }
@@ -887,4 +937,4 @@ els.msgInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMes
 })();
 </script>
 </body>
-                                                                                                                                                                                                                                                                                                                                                                 </html>
+</html>
